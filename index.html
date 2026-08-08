@@ -487,9 +487,25 @@
         const hoje      = contas.filter(c => c.grupo === 'hoje');
         const proximas  = contas.filter(c => c.grupo === 'proxima');
 
+        function formatarValor(v) {
+            // Converte "99.9" ou "99,90" ou "1234.56" pra "R$ 99,90"
+            if (!v) return '';
+            const num = parseFloat(String(v).replace(',', '.'));
+            if (isNaN(num)) return v;
+            return 'R$ ' + num.toFixed(2).replace('.', ',');
+        }
+
         function textoUnica(c) {
-            return [c.nome || c.fornecedor, c.formaPag, 'Vencimento', c.vencimento, c.categoria, c.obs, c.valor]
-                .filter(Boolean).join(' ').trim();
+            const fornecedor = (c.fornecedor || c.nome || '').trim();
+            const partes = [
+                c.formaPag  ? c.formaPag  : null,
+                c.vencimento ? 'Vencimento ' + c.vencimento : null,
+                c.categoria  ? c.categoria  : null,
+                c.valor      ? formatarValor(c.valor) : null,
+            ].filter(Boolean).join('\n');
+            const obs = (c.obs || '').trim(); // código de barras / PIX — vem por último
+
+            return [fornecedor, partes, obs].filter(Boolean).join('\n\n');
         }
 
         function textoTodas(lista) {
@@ -729,8 +745,6 @@
             }
 
             loading.classList.remove('show');
-            outputBox.value = allResults.trim();
-            outputSection.classList.add('show');
             successMessage.textContent = `✅ ${total} arquivo(s) salvo(s) direto na planilha!`;
             successMessage.classList.add('show');
             selectedFiles = [];
