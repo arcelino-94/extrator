@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#3D2A44">
+    <title>Extrator de Comprovantes</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+    <link rel="apple-touch-icon" href="icon-180.png">
+    <style>
+        :root {
+            --paper: #F5F0E6;
+            --card: #FFFCF6;
+            --tape: #F9F3E4;
+            --ink: #2A231D;
+            --ink-soft: #786C5E;
+            --line: #E3D9C6;
+            --accent: #5B3E63;
+            --accent-deep: #3D2A44;
+            --accent-soft: #F1E8ED;
+            --stamp: #2F6B4F;
+            --stamp-soft: #E3EEE7;
+            --danger: #A8402F;
+            --danger-soft: #F5E6E1;
+            --warn: #7A5A00;
+            --warn-soft: #FFF8E1;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--paper);
+            color: var(--ink);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 20px 18px 60px;
+        }
+        .container {
+            position: relative;
+            background: var(--card);
+            border-radius: 18px;
+            padding: 28px 22px 24px;
+            max-width: 440px;
+            width: 100%;
+            box-shadow: 0 18px 40px -14px rgba(42,35,29,0.35), 0 2px 10px rgba(42,35,29,0.08);
+            border: 1px solid rgba(42,35,29,0.07);
+        }
+        .container::before {
+            content: "";
+            position: absolute;
+            top: -9px; left: 0; right: 0;
+            height: 18px;
+            background-image: radial-gradient(circle at center, var(--paper) 9px, transparent 9.6px);
+            background-size: 26px 18px;
+            background-repeat: repeat-x;
+            background-position: 13px center;
+            pointer-events: none;
+        }
+
+        /* ---- Navegação por abas ---- */
+        .app-tabs {
+            display: flex;
+            gap: 4px;
+            background: var(--accent-soft);
+            padding: 4px;
+            border-radius: 12px;
+            margin-bottom: 22px;
+        }
+        .app-tab {
+            flex: 1;
+            padding: 10px 6px;
+            border: none;
+            background: transparent;
+            border-radius: 9px;
+            cursor: pointer;
+            font-size: 12.5px;
+            font-weight: 600;
+            font-family: inherit;
+            color: var(--accent-deep);
+            transition: background 0.2s, color 0.2s;
+            line-height: 1.3;
+        }
+        .app-tab.active {
+            background: var(--accent-deep);
+            color: var(--tape);
+            box-shadow: 0 4px 10px -4px rgba(61,42,68,0.55);
+        }
+
+        /* ---- Painel de contas ---- */
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        .contas-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 14px;
+        }
+        .contas-title {
+            font-family: Georgia, serif;
+            font-size: 17px;
+            font-weight: 600;
+            color: var(--ink);
+        }
+        .btn-refresh {
+            background: transparent;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 6px 11px;
+            font-size: 12px;
+            font-weight: 600;
+            font-family: inherit;
+            color: var(--ink-soft);
+            cursor: pointer;
+        }
+        .btn-refresh:active { background: var(--line); }
+
+        .contas-loading {
+            text-align: center;
+            padding: 30px 0;
+            color: var(--ink-soft);
+            font-size: 13px;
+        }
+        .spinner-small {
+            display: inline-block;
+            width: 20px; height: 20px;
+            border: 2.5px solid var(--line);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.9s linear infinite;
+            margin-bottom: 8px;
+        }
+
+        .secao-label {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--ink-soft);
+            margin: 16px 0 8px;
+        }
+        .secao-label:first-child { margin-top: 0; }
+
+        .conta-card {
+            background: var(--paper);
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            padding: 11px 13px;
+            margin-bottom: 8px;
+        }
+        .conta-card.hoje {
+            border-color: var(--warn);
+            background: var(--warn-soft);
+        }
+        .conta-nome {
+            font-size: 13.5px;
+            font-weight: 700;
+            color: var(--ink);
+            margin-bottom: 3px;
+        }
+        .conta-detalhes {
+            font-size: 11.5px;
+            color: var(--ink-soft);
+            line-height: 1.5;
+        }
+        .conta-valor {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--accent-deep);
+            margin-top: 6px;
+        }
+        .conta-venc {
+            display: inline-block;
+            background: var(--warn);
+            color: #fff;
+            border-radius: 5px;
+            padding: 1px 7px;
+            font-size: 11px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        .conta-venc.proxima {
+            background: var(--accent);
+        }
+
+        .copy-bloco {
+            margin-top: 16px;
+            background: var(--tape);
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            padding: 12px;
+        }
+        .copy-bloco-label {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--ink-soft);
+            margin-bottom: 8px;
+        }
+        .copy-bloco textarea {
+            width: 100%;
+            background: transparent;
+            border: none;
+            font-family: inherit;
+            font-size: 12.5px;
+            color: var(--ink);
+            line-height: 1.6;
+            resize: none;
+            outline: none;
+            min-height: 70px;
+        }
+        .btn-copiar-contas {
+            width: 100%;
+            background: var(--stamp);
+            color: var(--tape);
+            border: none;
+            border-radius: 8px;
+            padding: 11px;
+            font-size: 13px;
+            font-weight: 700;
+            font-family: inherit;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        .btn-copiar-contas:active { opacity: 0.85; }
+
+        .empty-state {
+            text-align: center;
+            padding: 28px 0;
+            color: var(--ink-soft);
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        .empty-state span { font-size: 26px; display: block; margin-bottom: 8px; }
+
+        /* ---- Aba extrator (igual ao original) ---- */
+        .masthead { text-align: center; margin-bottom: 22px; }
+        .eyebrow {
+            font-size: 11px; font-weight: 700;
+            letter-spacing: 0.14em; text-transform: uppercase;
+            color: var(--accent); margin-bottom: 6px;
+        }
+        h1 {
+            font-family: Georgia, 'Palatino Linotype', serif;
+            font-size: 23px; font-weight: 600;
+            color: var(--ink); letter-spacing: -0.01em;
+        }
+        .form-group { margin-bottom: 18px; }
+        .form-group + .form-group { border-top: 1px dashed var(--line); padding-top: 18px; }
+        .kicker {
+            display: block; margin-bottom: 10px;
+            color: var(--ink-soft); font-weight: 600;
+            font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+        }
+        .format-options {
+            display: flex; gap: 4px;
+            background: var(--accent-soft);
+            padding: 4px; border-radius: 12px;
+        }
+        .format-btn {
+            flex: 1; padding: 10px 8px; border: none;
+            background: transparent; border-radius: 9px;
+            cursor: pointer; font-size: 13px; font-weight: 600;
+            font-family: inherit; color: var(--accent-deep);
+            transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+        }
+        .format-btn.active {
+            background: var(--accent-deep); color: var(--tape);
+            box-shadow: 0 4px 10px -4px rgba(61,42,68,0.55);
+        }
+        .file-input-label {
+            display: flex; align-items: center; justify-content: center;
+            gap: 10px; padding: 20px 16px;
+            border: 1.5px dashed var(--accent); border-radius: 12px;
+            background: var(--accent-soft); cursor: pointer;
+            color: var(--accent-deep); font-weight: 600; font-size: 14px;
+        }
+        .file-input-label svg { flex-shrink: 0; width: 22px; height: 22px; }
+        .file-input-label:active { background: var(--accent); color: var(--tape); }
+        #fileInput { display: none; }
+        .file-list { margin-top: 12px; max-height: 150px; overflow-y: auto; }
+        .file-item {
+            background: var(--paper); padding: 9px 12px;
+            border-radius: 8px; margin-bottom: 6px;
+            font-size: 12.5px; border: 1px solid var(--line);
+        }
+        .file-item-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+        .file-item-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+        .rename-input {
+            width: 100%; margin-top: 7px; padding: 7px 10px;
+            border: 1px solid var(--line); border-radius: 6px;
+            font-size: 12px; font-family: inherit; background: var(--card);
+        }
+        .rename-input:focus { border-color: var(--accent); outline: none; }
+        .remove-file {
+            background: transparent; color: var(--danger);
+            border: 1px solid var(--danger); border-radius: 6px;
+            padding: 4px 9px; cursor: pointer; font-size: 11px; font-weight: 600;
+        }
+        button.process-btn {
+            width: 100%; padding: 14px;
+            background: linear-gradient(180deg, var(--accent) 0%, var(--accent-deep) 100%);
+            color: var(--tape); border: none; border-radius: 12px;
+            font-size: 14px; font-weight: 700; font-family: inherit;
+            cursor: pointer; margin-top: 4px;
+            box-shadow: 0 10px 24px -10px rgba(61,42,68,0.6);
+        }
+        button.process-btn:disabled {
+            background: var(--line); color: var(--ink-soft);
+            cursor: not-allowed; box-shadow: none;
+        }
+        .output-section { margin-top: 22px; display: none; }
+        .output-section.show { display: block; }
+        .output-box {
+            background: var(--tape); border: 1px solid var(--line);
+            border-radius: 10px; padding: 14px; max-height: 200px;
+            width: 100%; overflow-y: auto;
+            font-family: ui-monospace, monospace; font-size: 12px;
+            line-height: 1.6; white-space: pre-wrap; word-break: break-word;
+            color: var(--ink); resize: none; display: block; margin-bottom: 10px;
+        }
+        .copy-btn {
+            display: flex; align-items: center; justify-content: center;
+            background: var(--stamp); color: var(--tape); border: none;
+            padding: 11px; border-radius: 10px; cursor: pointer;
+            font-size: 13px; font-weight: 700; font-family: inherit; width: 100%;
+        }
+        .loading { display: none; text-align: center; padding: 20px 0 4px; }
+        .loading.show { display: block; }
+        .loading p { font-size: 13px; color: var(--ink-soft); margin-top: 8px; }
+        .progress-track {
+            width: 100%; height: 6px; background: var(--line);
+            border-radius: 3px; margin-top: 12px; overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%; width: 0%;
+            background: linear-gradient(90deg, var(--accent) 0%, var(--stamp) 100%);
+            border-radius: 3px; transition: width 0.35s ease;
+        }
+        .progress-percent { font-size: 11px; color: var(--ink-soft); margin-top: 6px; font-weight: 700; }
+        .spinner {
+            border: 3px solid var(--line); border-top: 3px solid var(--accent);
+            border-radius: 50%; width: 28px; height: 28px;
+            animation: spin 0.9s linear infinite; margin: 0 auto;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .error-message, .success-message {
+            padding: 11px 13px; border-radius: 8px; margin-top: 12px;
+            display: none; font-size: 13px; font-weight: 600; line-height: 1.5;
+        }
+        .error-message { background: var(--danger-soft); color: var(--danger); border-left: 3px solid var(--danger); }
+        .success-message { background: var(--stamp-soft); color: var(--stamp); border-left: 3px solid var(--stamp); }
+        .error-message.show, .success-message.show { display: block; }
+        @media (prefers-reduced-motion: reduce) { * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; } }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <!-- Navegação -->
+    <div class="app-tabs">
+        <button class="app-tab" data-tab="contas">📋 Contas do Dia</button>
+        <button class="app-tab active" data-tab="extrator">📎 Extrator</button>
+    </div>
+
+    <!-- ============ ABA: CONTAS DO DIA ============ -->
+    <div class="tab-panel" id="tab-contas">
+        <div class="contas-header">
+            <span class="contas-title">Contas a Pagar</span>
+            <button class="btn-refresh" id="btnRefresh">↻ Atualizar</button>
+        </div>
+        <div id="contasBody">
+            <div class="contas-loading">
+                <div class="spinner-small"></div><br>Carregando contas...
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ ABA: EXTRATOR ============ -->
+    <div class="tab-panel active" id="tab-extrator">
+        <div class="masthead">
+            <p class="eyebrow">PIX · Boleto · TED</p>
+            <h1>Extrator de Comprovantes</h1>
+        </div>
+
+        <div class="form-group">
+            <p class="kicker">Formato de saída</p>
+            <div class="format-options">
+                <button class="format-btn active" data-format="contas">Contas a Pagar</button>
+                <button class="format-btn" data-format="gastos">Gastos Pessoais</button>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="fileInput" class="kicker">Comprovantes</label>
+            <div>
+                <label for="fileInput" class="file-input-label">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h8l4 4v14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M15 3v4h4"/><path d="M9 12h6M9 15.5h6M9 9h3"/></svg>
+                    <span>Toque ou arraste os comprovantes aqui</span>
+                </label>
+                <input type="file" id="fileInput" accept=".pdf,.jpg,.jpeg,.png,.webp" multiple>
+            </div>
+            <div class="file-list" id="fileList"></div>
+        </div>
+
+        <button class="process-btn" id="processBtn" disabled>Processar e Salvar na Planilha</button>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p id="loadingStatus">Processando...</p>
+            <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+            <p class="progress-percent" id="progressPercent">0%</p>
+        </div>
+
+        <div class="error-message" id="errorMessage"></div>
+        <div class="success-message" id="successMessage"></div>
+
+        <div class="output-section" id="outputSection">
+            <p class="kicker">Resultado salvo na planilha</p>
+            <textarea class="output-box" id="outputBox" readonly></textarea>
+            <button class="copy-btn" id="copyBtn">📋 Copiar Resultado</button>
+            <button class="copy-btn" id="btnLimpar" style="margin-top:8px;background:var(--ink-soft)">🗑️ Limpar e enviar novos</button>
+        </div>
+    </div>
+
+</div>
+<script>
+    const BACKEND_URL = "https://script.google.com/macros/s/AKfycbxoNXwFSZf4LyiF6hltAM5c2R6KmZzfwmEo6iZNGIVyaHbIKhFzQaT27uXGj-192DjW/exec";
+    const SHARED_SECRET = "2667";
+
+    // ---- Navegação por abas ----
+    document.querySelectorAll('.app-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.app-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+            tab.classList.add('active');
+            document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+        });
+    });
+
+    // ================================================================
+    // ABA CONTAS DO DIA
+    // ================================================================
+    function formatarDataBR(d) {
+        return d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' });
+    }
+
+    async function carregarContas() {
+        const body = document.getElementById('contasBody');
+        body.innerHTML = '<div class="contas-loading"><div class="spinner-small"></div><br>Carregando...</div>';
+        try {
+            const url = BACKEND_URL + '?secret=' + encodeURIComponent(SHARED_SECRET);
+            const res = await fetch(url);
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+            renderContas(data.contas || []);
+        } catch(e) {
+            body.innerHTML = '<div class="error-message show">❌ ' + e.message + '</div>';
+        }
+    }
+
+    function renderContas(contas) {
+        const body = document.getElementById('contasBody');
+        if (contas.length === 0) {
+            body.innerHTML = '<div class="empty-state"><span>✅</span>Nenhuma conta em aberto<br>nos próximos 3 dias!</div>';
+            return;
+        }
+
+        const atrasadas = contas.filter(c => c.grupo === 'atrasada');
+        const hoje      = contas.filter(c => c.grupo === 'hoje');
+        const proximas  = contas.filter(c => c.grupo === 'proxima');
+
+        function textoLinha(c, i, lista) {
+            const base = [c.nome || c.fornecedor, c.formaPag, 'Vencimento', c.vencimento, c.categoria, c.obs, c.valor]
+                .filter(Boolean).join(' ').trim();
+            return lista.length > 1 ? `${i+1} ${base}` : base;
+        }
+
+        function blocoTexto(lista, idTexto, idBtn, labelBtn) {
+            const linhas = lista.map((c, i) => textoLinha(c, i, lista)).join('\n\n');
+            return `
+            <div class="copy-bloco">
+                <div class="copy-bloco-label">Texto para copiar</div>
+                <textarea id="${idTexto}" readonly>${linhas}</textarea>
+                <button class="btn-copiar-contas" id="${idBtn}">${labelBtn}</button>
+            </div>`;
+        }
+
+        function cartao(c, cor) {
+            const badge = cor === 'danger'
+                ? `<span class="conta-venc" style="background:#A8402F">⚠️ Atrasada — ${c.vencimento}</span>`
+                : cor === 'hoje'
+                ? `<span class="conta-venc">Hoje — ${c.vencimento}</span>`
+                : `<span class="conta-venc proxima">${c.vencimento}</span>`;
+            const borda = cor === 'danger' ? 'border-color:#A8402F;background:#F5E6E1' : cor === 'hoje' ? '' : '';
+            return `
+            <div class="conta-card ${cor === 'hoje' ? 'hoje' : ''}" style="${borda}">
+                ${badge}
+                <div class="conta-nome">${c.nome || c.fornecedor}</div>
+                <div class="conta-detalhes">${[c.fornecedor, c.formaPag, c.categoria, c.obs].filter(Boolean).join(' · ')}</div>
+                <div class="conta-valor">R$ ${c.valor}</div>
+            </div>`;
+        }
+
+        let html = '';
+
+        if (atrasadas.length > 0) {
+            html += '<div class="secao-label">🔴 Em atraso</div>';
+            atrasadas.forEach(c => { html += cartao(c, 'danger'); });
+            html += blocoTexto(atrasadas, 'textoAtrasadas', 'btnCopiarAtrasadas', '📋 Copiar contas em atraso');
+        }
+
+        if (hoje.length > 0) {
+            html += `<div class="secao-label" ${atrasadas.length > 0 ? 'style="margin-top:20px"' : ''}>⚠️ Vence hoje</div>`;
+            hoje.forEach(c => { html += cartao(c, 'hoje'); });
+            html += blocoTexto(hoje, 'textoHoje', 'btnCopiarHoje', '📋 Copiar contas de hoje');
+        }
+
+        if (proximas.length > 0) {
+            html += '<div class="secao-label" style="margin-top:20px">📅 Próximos 3 dias</div>';
+            proximas.forEach(c => { html += cartao(c, 'proxima'); });
+            html += blocoTexto(proximas, 'textoProximas', 'btnCopiarProximas', '📋 Copiar próximas contas');
+        }
+
+        body.innerHTML = html;
+
+        // Evento de copiar reutilizável
+        function ativarCopiar(idBtn, idTexto, labelOriginal) {
+            const btn = document.getElementById(idBtn);
+            if (!btn) return;
+            btn.addEventListener('click', () => {
+                const txt = document.getElementById(idTexto).value;
+                const copiar = () => {
+                    btn.textContent = '✅ Copiado!';
+                    setTimeout(() => { btn.textContent = labelOriginal; }, 2000);
+                };
+                if (navigator.clipboard && window.isSecureContext) {
+                    navigator.clipboard.writeText(txt).then(copiar).catch(() => {
+                        document.getElementById(idTexto).select();
+                        document.execCommand('copy'); copiar();
+                    });
+                } else {
+                    document.getElementById(idTexto).select();
+                    document.execCommand('copy'); copiar();
+                }
+            });
+        }
+
+        ativarCopiar('btnCopiarAtrasadas', 'textoAtrasadas', '📋 Copiar contas em atraso');
+        ativarCopiar('btnCopiarHoje',      'textoHoje',      '📋 Copiar contas de hoje');
+        ativarCopiar('btnCopiarProximas',  'textoProximas',  '📋 Copiar próximas contas');
+    }
+
+    document.getElementById('btnRefresh').addEventListener('click', carregarContas);
+    carregarContas(); // carrega ao abrir
+
+    // ================================================================
+    // ABA EXTRATOR
+    // ================================================================
+    let selectedFormat = 'contas';
+    let selectedFiles = [];
+
+    document.querySelectorAll('.format-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.format-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            selectedFormat = btn.dataset.format;
+        });
+    });
+
+    const fileInput = document.getElementById('fileInput');
+    const processBtn = document.getElementById('processBtn');
+
+    fileInput.addEventListener('change', e => { addFiles(e.target.files); fileInput.value = ''; });
+
+    function addFiles(files) {
+        Array.from(files).forEach(file => {
+            if (!selectedFiles.find(f => f.file.name === file.name && f.file.size === file.size)) {
+                selectedFiles.push({ file, customName: '' });
+            }
+        });
+        updateFileList();
+    }
+
+    function removeFile(index) { selectedFiles.splice(index, 1); updateFileList(); }
+    function updateCustomName(index, value) { if (selectedFiles[index]) selectedFiles[index].customName = value; }
+
+    function escapeAttr(str) {
+        return String(str).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function updateFileList() {
+        const fileList = document.getElementById('fileList');
+        fileList.innerHTML = '';
+        selectedFiles.forEach((entry, index) => {
+            const item = document.createElement('div');
+            item.className = 'file-item';
+            item.innerHTML = `
+                <div class="file-item-row">
+                    <span class="file-item-name">${escapeAttr(entry.file.name)}</span>
+                    <button class="remove-file" onclick="removeFile(${index})">Remover</button>
+                </div>
+                <input type="text" class="rename-input" placeholder="Descrição opcional" value="${escapeAttr(entry.customName)}" oninput="updateCustomName(${index}, this.value)">`;
+            fileList.appendChild(item);
+        });
+        processBtn.disabled = selectedFiles.length === 0;
+    }
+
+    async function fileToBase64(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve({ base64: reader.result.split(',')[1], mimeType: file.type || 'application/octet-stream' });
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    }
+
+    async function sleep(ms) {
+        return new Promise(r => setTimeout(r, ms));
+    }
+
+    function setStatus(msg) {
+        document.getElementById('loadingStatus').textContent = msg;
+    }
+
+    function setProgress(pct) {
+        document.getElementById('progressFill').style.width = pct + '%';
+        document.getElementById('progressPercent').textContent = pct + '%';
+    }
+
+    async function enviarArquivo(entry, tentativa) {
+        const { base64, mimeType } = await fileToBase64(entry.file);
+        const res = await fetch(BACKEND_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+                fileBase64: base64,
+                mimeType,
+                format: selectedFormat,
+                fileName: entry.file.name,
+                customName: entry.customName,
+                secret: SHARED_SECRET
+            })
+        });
+        const data = await res.json();
+        if (!data.error) return data; // sucesso
+
+        // Rate limit — faz countdown na tela e tenta de novo
+        if (data.error && data.error.startsWith('RATE_LIMIT_AGUARDANDO')) {
+            const partes = data.error.split(':');
+            const nTentativa = parseInt(partes[1]) || tentativa;
+            const waitMs = parseInt(partes[2]) || 90000;
+            const waitSeg = Math.ceil(waitMs / 1000);
+
+            for (let s = waitSeg; s > 0; s--) {
+                setStatus(`⏳ Limite da API atingido — tentativa ${nTentativa}. Aguardando ${s}s para tentar de novo...`);
+                await sleep(1000);
+            }
+            return enviarArquivo(entry, nTentativa + 1); // tenta de novo recursivamente
+        }
+
+        if (data.error && data.error.startsWith('RATE_LIMIT_ESGOTADO')) {
+            throw new Error('Limite da API esgotado após muitas tentativas. Tente novamente mais tarde.');
+        }
+
+        throw new Error(data.error);
+    }
+
+    async function processFiles() {
+        const loading = document.getElementById('loading');
+        const errorMessage = document.getElementById('errorMessage');
+        const successMessage = document.getElementById('successMessage');
+        const outputSection = document.getElementById('outputSection');
+        const outputBox = document.getElementById('outputBox');
+        const processBtn = document.getElementById('processBtn');
+
+        errorMessage.classList.remove('show');
+        successMessage.classList.remove('show');
+        outputSection.classList.remove('show');
+        loading.classList.add('show');
+        processBtn.disabled = true;
+
+        try {
+            let allResults = '';
+            const total = selectedFiles.length;
+
+            for (let i = 0; i < total; i++) {
+                const entry = selectedFiles[i];
+                setProgress(Math.round((i / total) * 100));
+                setStatus(`📄 Enviando arquivo ${i + 1} de ${total}: ${entry.file.name}`);
+
+                const data = await enviarArquivo(entry, 1);
+                allResults += data.resultLine + '\n';
+
+                setProgress(Math.round(((i + 1) / total) * 100));
+                setStatus(`✅ Arquivo ${i + 1} de ${total} salvo!`);
+
+                // Intervalo entre arquivos pra não bater no limite
+                if (i < total - 1) {
+                    for (let s = 5; s > 0; s--) {
+                        setStatus(`✅ Arquivo ${i + 1} de ${total} salvo! Próximo em ${s}s...`);
+                        await sleep(1000);
+                    }
+                }
+            }
+
+            loading.classList.remove('show');
+            outputBox.value = allResults.trim();
+            outputSection.classList.add('show');
+            successMessage.textContent = `✅ ${total} arquivo(s) salvo(s) direto na planilha!`;
+            successMessage.classList.add('show');
+            selectedFiles = [];
+            updateFileList();
+
+        } catch(error) {
+            loading.classList.remove('show');
+            errorMessage.textContent = '❌ ' + error.message;
+            errorMessage.classList.add('show');
+            processBtn.disabled = selectedFiles.length === 0;
+        }
+    }
+
+    processBtn.addEventListener('click', processFiles);
+
+    // Botão limpar resultado
+    document.getElementById('btnLimpar').addEventListener('click', () => {
+        document.getElementById('outputSection').classList.remove('show');
+        document.getElementById('successMessage').classList.remove('show');
+        document.getElementById('errorMessage').classList.remove('show');
+        document.getElementById('outputBox').value = '';
+        setProgress(0);
+    });
+
+    const copyBtn = document.getElementById('copyBtn');
+    const outputBox = document.getElementById('outputBox');
+    copyBtn.addEventListener('click', () => {
+        const text = outputBox.value;
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text).catch(() => { outputBox.select(); document.execCommand('copy'); });
+        } else { outputBox.select(); document.execCommand('copy'); }
+    });
+
+    // Service Worker
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
+    }
+</script>
+</body>
+</html>
