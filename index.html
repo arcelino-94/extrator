@@ -212,6 +212,20 @@
             outline: none;
             min-height: 70px;
         }
+        .btn-copiar-card {
+            margin-top: 8px;
+            background: transparent;
+            border: 1px solid var(--accent);
+            color: var(--accent-deep);
+            border-radius: 6px;
+            padding: 5px 12px;
+            font-size: 12px;
+            font-weight: 700;
+            font-family: inherit;
+            cursor: pointer;
+            width: 100%;
+        }
+        .btn-copiar-card:active { background: var(--accent-soft); }
         .btn-copiar-contas {
             width: 100%;
             background: var(--stamp);
@@ -473,35 +487,41 @@
         const hoje      = contas.filter(c => c.grupo === 'hoje');
         const proximas  = contas.filter(c => c.grupo === 'proxima');
 
-        function textoLinha(c, i, lista) {
-            const base = [c.nome || c.fornecedor, c.formaPag, 'Vencimento', c.vencimento, c.categoria, c.obs, c.valor]
+        function textoUnica(c) {
+            return [c.nome || c.fornecedor, c.formaPag, 'Vencimento', c.vencimento, c.categoria, c.obs, c.valor]
                 .filter(Boolean).join(' ').trim();
-            return lista.length > 1 ? `${i+1} ${base}` : base;
         }
 
-        function blocoTexto(lista, idTexto, idBtn, labelBtn) {
-            const linhas = lista.map((c, i) => textoLinha(c, i, lista)).join('\n\n');
-            return `
-            <div class="copy-bloco">
-                <div class="copy-bloco-label">Texto para copiar</div>
-                <textarea id="${idTexto}" readonly>${linhas}</textarea>
-                <button class="btn-copiar-contas" id="${idBtn}">${labelBtn}</button>
-            </div>`;
+        function textoTodas(lista) {
+            return lista.map((c, i) => lista.length > 1 ? `${i+1} ${textoUnica(c)}` : textoUnica(c)).join('\n\n');
         }
 
-        function cartao(c, cor) {
+        function copiarTexto(txt, btn, label) {
+            const exec = () => {
+                btn.textContent = '✅ Copiado!';
+                setTimeout(() => { btn.textContent = label; }, 2000);
+            };
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(txt).then(exec).catch(() => { exec(); });
+            } else { exec(); }
+        }
+
+        // Cartão com botão individual embutido
+        function cartao(c, cor, idx) {
             const badge = cor === 'danger'
                 ? `<span class="conta-venc" style="background:#A8402F">⚠️ Atrasada — ${c.vencimento}</span>`
                 : cor === 'hoje'
                 ? `<span class="conta-venc">Hoje — ${c.vencimento}</span>`
                 : `<span class="conta-venc proxima">${c.vencimento}</span>`;
-            const borda = cor === 'danger' ? 'border-color:#A8402F;background:#F5E6E1' : cor === 'hoje' ? '' : '';
+            const estilo = cor === 'danger' ? 'border-color:#A8402F;background:#F5E6E1' : '';
+            const id = `btnCard_${cor}_${idx}`;
             return `
-            <div class="conta-card ${cor === 'hoje' ? 'hoje' : ''}" style="${borda}">
+            <div class="conta-card ${cor === 'hoje' ? 'hoje' : ''}" style="${estilo}">
                 ${badge}
                 <div class="conta-nome">${c.nome || c.fornecedor}</div>
                 <div class="conta-detalhes">${[c.fornecedor, c.formaPag, c.categoria, c.obs].filter(Boolean).join(' · ')}</div>
                 <div class="conta-valor">R$ ${c.valor}</div>
+                <button class="btn-copiar-card" id="${id}">📋 Copiar</button>
             </div>`;
         }
 
@@ -509,49 +529,50 @@
 
         if (atrasadas.length > 0) {
             html += '<div class="secao-label">🔴 Em atraso</div>';
-            atrasadas.forEach(c => { html += cartao(c, 'danger'); });
-            html += blocoTexto(atrasadas, 'textoAtrasadas', 'btnCopiarAtrasadas', '📋 Copiar contas em atraso');
+            atrasadas.forEach((c, i) => { html += cartao(c, 'danger', i); });
+            if (atrasadas.length > 1) {
+                html += `<button class="btn-copiar-contas" id="btnCopiarAtrasadas" style="margin-top:4px">📋 Copiar todas em atraso</button>`;
+            }
         }
 
         if (hoje.length > 0) {
             html += `<div class="secao-label" ${atrasadas.length > 0 ? 'style="margin-top:20px"' : ''}>⚠️ Vence hoje</div>`;
-            hoje.forEach(c => { html += cartao(c, 'hoje'); });
-            html += blocoTexto(hoje, 'textoHoje', 'btnCopiarHoje', '📋 Copiar contas de hoje');
+            hoje.forEach((c, i) => { html += cartao(c, 'hoje', i); });
+            if (hoje.length > 1) {
+                html += `<button class="btn-copiar-contas" id="btnCopiarHoje" style="margin-top:4px">📋 Copiar todas de hoje</button>`;
+            }
         }
 
         if (proximas.length > 0) {
             html += '<div class="secao-label" style="margin-top:20px">📅 Próximos 3 dias</div>';
-            proximas.forEach(c => { html += cartao(c, 'proxima'); });
-            html += blocoTexto(proximas, 'textoProximas', 'btnCopiarProximas', '📋 Copiar próximas contas');
+            proximas.forEach((c, i) => { html += cartao(c, 'proxima', i); });
+            // Próximas: só botão individual, sem copiar todas
         }
 
         body.innerHTML = html;
 
-        // Evento de copiar reutilizável
-        function ativarCopiar(idBtn, idTexto, labelOriginal) {
-            const btn = document.getElementById(idBtn);
-            if (!btn) return;
-            btn.addEventListener('click', () => {
-                const txt = document.getElementById(idTexto).value;
-                const copiar = () => {
-                    btn.textContent = '✅ Copiado!';
-                    setTimeout(() => { btn.textContent = labelOriginal; }, 2000);
-                };
-                if (navigator.clipboard && window.isSecureContext) {
-                    navigator.clipboard.writeText(txt).then(copiar).catch(() => {
-                        document.getElementById(idTexto).select();
-                        document.execCommand('copy'); copiar();
-                    });
-                } else {
-                    document.getElementById(idTexto).select();
-                    document.execCommand('copy'); copiar();
-                }
-            });
-        }
+        // Ativa botões individuais de cada cartão
+        atrasadas.forEach((c, i) => {
+            const btn = document.getElementById(`btnCard_danger_${i}`);
+            if (btn) btn.addEventListener('click', () => copiarTexto(textoUnica(c), btn, '📋 Copiar'));
+        });
+        hoje.forEach((c, i) => {
+            const btn = document.getElementById(`btnCard_hoje_${i}`);
+            if (btn) btn.addEventListener('click', () => copiarTexto(textoUnica(c), btn, '📋 Copiar'));
+        });
+        proximas.forEach((c, i) => {
+            const btn = document.getElementById(`btnCard_proxima_${i}`);
+            if (btn) btn.addEventListener('click', () => copiarTexto(textoUnica(c), btn, '📋 Copiar'));
+        });
 
-        ativarCopiar('btnCopiarAtrasadas', 'textoAtrasadas', '📋 Copiar contas em atraso');
-        ativarCopiar('btnCopiarHoje',      'textoHoje',      '📋 Copiar contas de hoje');
-        ativarCopiar('btnCopiarProximas',  'textoProximas',  '📋 Copiar próximas contas');
+        // Ativa botões de copiar todas (só aparecem se tiver mais de 1)
+        const btnAtrasadas = document.getElementById('btnCopiarAtrasadas');
+        if (btnAtrasadas) btnAtrasadas.addEventListener('click', () =>
+            copiarTexto(textoTodas(atrasadas), btnAtrasadas, '📋 Copiar todas em atraso'));
+
+        const btnHoje = document.getElementById('btnCopiarHoje');
+        if (btnHoje) btnHoje.addEventListener('click', () =>
+            copiarTexto(textoTodas(hoje), btnHoje, '📋 Copiar todas de hoje'));
     }
 
     document.getElementById('btnRefresh').addEventListener('click', carregarContas);
