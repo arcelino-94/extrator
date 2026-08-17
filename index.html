@@ -722,6 +722,20 @@
             return enviarArquivo(entry, tentativa + 1); // tenta de novo recursivamente
         }
 
+        // Erro temporário do Google (modelo sobrecarregado 503, instabilidade 500/502/504)
+        if (data.error && data.error.startsWith('TEMP_ERROR')) {
+            const MAX_TENTATIVAS_TEMP = 5;
+            if (tentativa >= MAX_TENTATIVAS_TEMP) {
+                throw new Error(`O servidor da Gemini continua instável após ${MAX_TENTATIVAS_TEMP} tentativas. Tente novamente em alguns minutos.`);
+            }
+            const waitSeg = 20;
+            for (let s = waitSeg; s > 0; s--) {
+                setStatus(`⏳ Gemini sobrecarregada no momento — tentativa ${tentativa} de ${MAX_TENTATIVAS_TEMP}. Tentando de novo em ${s}s...`);
+                await sleep(1000);
+            }
+            return enviarArquivo(entry, tentativa + 1);
+        }
+
         throw new Error(data.error);
     }
 
@@ -740,38 +754,41 @@
         processBtn.disabled = true;
 
         try {
-            let allResults = '';
-            const total = selectedFiles.length;
+            const totalInicial = selectedFiles.length;
+            let processados = 0;
 
-            for (let i = 0; i < total; i++) {
-                const entry = selectedFiles[i];
-                setProgress(Math.round((i / total) * 100));
-                setStatus(`📄 Enviando arquivo ${i + 1} de ${total}: ${entry.file.name}`);
+            while (selectedFiles.length > 0) {
+                const entry = selectedFiles[0]; // sempre pega o primeiro restante
+                setProgress(Math.round((processados / totalInicial) * 100));
+                setStatus(`📄 Enviando arquivo ${processados + 1} de ${totalInicial}: ${entry.file.name}`);
 
                 const data = await enviarArquivo(entry, 1);
-                allResults += data.resultLine + '\n';
 
-                setProgress(Math.round(((i + 1) / total) * 100));
-                setStatus(`✅ Arquivo ${i + 1} de ${total} salvo!`);
+                // Sucesso: remove da lista imediatamente (evita reenvio duplicado se algo falhar depois)
+                selectedFiles.shift();
+                updateFileList();
+                processados++;
+
+                setProgress(Math.round((processados / totalInicial) * 100));
+                setStatus(`✅ Arquivo ${processados} de ${totalInicial} salvo!`);
 
                 // Intervalo entre arquivos pra não bater no limite
-                if (i < total - 1) {
+                if (selectedFiles.length > 0) {
                     for (let s = 5; s > 0; s--) {
-                        setStatus(`✅ Arquivo ${i + 1} de ${total} salvo! Próximo em ${s}s...`);
+                        setStatus(`✅ ${processados} de ${totalInicial} salvos! Próximo em ${s}s...`);
                         await sleep(1000);
                     }
                 }
             }
 
             loading.classList.remove('show');
-            successMessage.textContent = `✅ ${total} arquivo(s) salvo(s) direto na planilha!`;
+            successMessage.textContent = `✅ ${totalInicial} arquivo(s) salvo(s) direto na planilha!`;
             successMessage.classList.add('show');
-            selectedFiles = [];
             updateFileList();
 
         } catch(error) {
             loading.classList.remove('show');
-            errorMessage.textContent = '❌ ' + error.message;
+            errorMessage.textContent = '❌ ' + error.message + ' (o que já foi salvo com sucesso não precisa ser reenviado — é só clicar em Processar de novo pra continuar com o restante)';
             errorMessage.classList.add('show');
             processBtn.disabled = selectedFiles.length === 0;
         }
