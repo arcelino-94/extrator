@@ -660,18 +660,22 @@
                 });
                 
                 const resultado = await response.json();
+                console.log('Resposta do servidor:', resultado);
+                
                 if (resultado.error) {
-                    btn.textContent = '❌ Erro';
+                    console.error('Erro ao gravar:', resultado.error);
+                    btn.textContent = '❌ Erro: ' + resultado.error;
                     btn.disabled = false;
-                    setTimeout(() => { btn.textContent = '✅ Pago'; }, 2000);
+                    setTimeout(() => { btn.textContent = '✅ Pago'; }, 4000);
                 } else {
                     btn.textContent = '✅ Gravado!';
                     setTimeout(() => { carregarContas(); }, 1500);
                 }
             } catch (e) {
-                btn.textContent = '❌ Erro';
+                console.error('Erro na requisição:', e);
+                btn.textContent = '❌ Erro de conexão';
                 btn.disabled = false;
-                setTimeout(() => { btn.textContent = '✅ Pago'; }, 2000);
+                setTimeout(() => { btn.textContent = '✅ Pago'; }, 4000);
             }
         }
 
