@@ -345,6 +345,8 @@
         .loading { display: none; text-align: center; padding: 20px 0 4px; }
         .loading.show { display: block; }
         .loading p { font-size: 13px; color: var(--ink-soft); margin-top: 8px; }
+        .log-envio { display: none; margin-top: 12px; padding: 10px 12px; background: #F5F1E8; border: 1px solid #E3DCCB; border-radius: 10px; max-height: 170px; overflow-y: auto; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11.5px; line-height: 1.55; color: var(--ink-soft); white-space: pre-wrap; word-break: break-word; }
+        .log-envio.show { display: block; }
         .progress-track {
             width: 100%; height: 6px; background: var(--line);
             border-radius: 3px; margin-top: 12px; overflow: hidden;
@@ -428,6 +430,8 @@
             <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
             <p class="progress-percent" id="progressPercent">0%</p>
         </div>
+
+        <div class="log-envio" id="logEnvio"></div>
 
         <div class="error-message" id="errorMessage"></div>
         <div class="success-message" id="successMessage"></div>
@@ -772,69 +776,102 @@
         document.getElementById('progressPercent').textContent = pct + '%';
     }
 
-    async function enviarArquivo(entry, tentativa, tentativaRede) {
-        tentativaRede = tentativaRede || 1;
-        const { base64, mimeType } = await fileToBase64(entry.file);
+    // Modelos em ordem de preferência (mesma lista do servidor) e quantas tentativas cada um
+    const MODELOS = [
+        { nome: 'gemini-3.6-flash', tentativas: 3 },
+        { nome: 'gemini-3.5-flash', tentativas: 3 },
+        { nome: 'gemini-3.4-flash', tentativas: 4 },
+        { nome: 'gemini-3.3-flash', tentativas: 5 }
+    ];
+    const ESPERA_ENTRE_TENTATIVAS_MS = 2000;
 
-        let res;
-        try {
-            res = await fetch(BACKEND_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: JSON.stringify({
+    function addLog(msg) {
+        const box = document.getElementById('logEnvio');
+        const hora = new Date().toLocaleTimeString('pt-BR');
+        box.textContent += (box.textContent ? '\n' : '') + `[${hora}] ${msg}`;
+        box.classList.add('show');
+        box.scrollTop = box.scrollHeight;
+    }
+
+    // Faz o POST; se a conexão cair ("Failed to fetch"), tenta de novo até 3 vezes
+    async function postComRetryRede(payload, rotulo) {
+        const MAX_REDE = 3;
+        for (let r = 1; r <= MAX_REDE; r++) {
+            try {
+                const res = await fetch(BACKEND_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(payload)
+                });
+                return await res.json();
+            } catch (netErr) {
+                if (r >= MAX_REDE) {
+                    throw new Error(`Falha de conexão (${rotulo}) após ${MAX_REDE} tentativas. Verifique a internet e tente de novo.`);
+                }
+                addLog(`📡 Conexão caiu (${rotulo}). Tentando de novo em 5s... (${r}/${MAX_REDE})`);
+                await sleep(5000);
+            }
+        }
+    }
+
+    async function enviarArquivo(entry, posicao, total) {
+        const { base64, mimeType } = await fileToBase64(entry.file);
+        const tamanhoMB = (entry.file.size / (1024 * 1024)).toFixed(2);
+        addLog(`📄 Arquivo ${posicao}/${total}: ${entry.file.name} (${tamanhoMB} MB)`);
+
+        for (let m = 0; m < MODELOS.length; m++) {
+            const { nome, tentativas } = MODELOS[m];
+            const proximo = MODELOS[m + 1] ? MODELOS[m + 1].nome : null;
+
+            for (let t = 1; t <= tentativas; t++) {
+                setStatus(`📄 Arquivo ${posicao} de ${total} · 🤖 ${nome} · tentativa ${t} de ${tentativas}`);
+                addLog(`🤖 Tentando ${nome} (tentativa ${t}/${tentativas})...`);
+
+                const inicio = Date.now();
+                const data = await postComRetryRede({
                     fileBase64: base64,
                     mimeType,
                     format: selectedFormat,
                     fileName: entry.file.name,
                     customName: entry.customName,
+                    modelo: nome,
                     secret: SHARED_SECRET
-                })
-            });
-        } catch (networkErr) {
-            // "Failed to fetch" — a conexão caiu antes de receber resposta
-            // (comum em PDFs grandes que demoram demais pra processar)
-            const MAX_TENTATIVAS_REDE = 3;
-            if (tentativaRede >= MAX_TENTATIVAS_REDE) {
-                throw new Error(`Falha de conexão ao enviar "${entry.file.name}" após ${MAX_TENTATIVAS_REDE} tentativas. O arquivo pode ser grande demais ou a rede está instável. Tente com um arquivo menor ou mais tarde.`);
+                }, nome);
+                const seg = ((Date.now() - inicio) / 1000).toFixed(1);
+
+                // Sucesso
+                if (!data.error) {
+                    addLog(`✅ Salvo na planilha com ${data.modelo || nome} (tentativa ${t}, ${seg}s)`);
+                    return data;
+                }
+
+                // Falha do modelo (não do app): decide entre tentar de novo ou trocar de modelo
+                if (data.error === 'MODEL_FAIL') {
+                    if (data.retry === 'temp') {
+                        if (t < tentativas) {
+                            addLog(`⚠️ ${nome} sobrecarregado (erro ${data.status}, ${seg}s). Tentando de novo em ${ESPERA_ENTRE_TENTATIVAS_MS / 1000}s...`);
+                            await sleep(ESPERA_ENTRE_TENTATIVAS_MS);
+                            continue;
+                        }
+                        addLog(`⚠️ ${nome} continuou sobrecarregado nas ${tentativas} tentativas (erro ${data.status}).`);
+                    } else {
+                        const motivo = data.status === 429 ? 'limite de uso atingido (429)'
+                                     : data.status === 404 ? 'modelo indisponível (404)'
+                                     : `erro ${data.status}: ${data.detalhe || 'sem detalhes'}`;
+                        addLog(`⏭️ ${nome}: ${motivo}.`);
+                    }
+                    if (proximo) addLog(`↪️ Passando para ${proximo}...`);
+                    break; // sai do loop de tentativas e vai pro próximo modelo
+                }
+
+                // Qualquer outro erro (senha errada, planilha, etc.) não adianta repetir
+                addLog(`❌ Erro: ${data.error}`);
+                throw new Error(data.error);
             }
-            setStatus(`⚠️ Conexão caiu ao enviar "${entry.file.name}" (tentativa ${tentativaRede}). Tentando de novo em 10s...`);
-            await sleep(10000);
-            return enviarArquivo(entry, tentativa, tentativaRede + 1);
         }
 
-        const data = await res.json();
-        if (!data.error) return data; // sucesso
-
-        // Rate limit — faz countdown na tela e tenta de novo (contador vive AQUI, não no servidor)
-        if (data.error === 'RATE_LIMIT') {
-            const MAX_TENTATIVAS = 6; // 6 tentativas * 90s = 9 minutos antes de desistir
-            if (tentativa >= MAX_TENTATIVAS) {
-                throw new Error(`Limite da API continua ativo após ${MAX_TENTATIVAS} tentativas (~9min). Pode ser o limite DIÁRIO da Gemini, não o por minuto — nesse caso só volta amanhã. Tente novamente mais tarde.`);
-            }
-
-            const waitSeg = 90;
-            for (let s = waitSeg; s > 0; s--) {
-                setStatus(`⏳ Limite da API atingido — tentativa ${tentativa} de ${MAX_TENTATIVAS}. Aguardando ${s}s...`);
-                await sleep(1000);
-            }
-            return enviarArquivo(entry, tentativa + 1); // tenta de novo recursivamente
-        }
-
-        // Erro temporário do Google (modelo sobrecarregado 503, instabilidade 500/502/504)
-        if (data.error && data.error.startsWith('TEMP_ERROR')) {
-            const MAX_TENTATIVAS_TEMP = 5;
-            if (tentativa >= MAX_TENTATIVAS_TEMP) {
-                throw new Error(`O servidor da Gemini continua instável após ${MAX_TENTATIVAS_TEMP} tentativas. Tente novamente em alguns minutos.`);
-            }
-            const waitSeg = 20;
-            for (let s = waitSeg; s > 0; s--) {
-                setStatus(`⏳ Gemini sobrecarregada no momento — tentativa ${tentativa} de ${MAX_TENTATIVAS_TEMP}. Tentando de novo em ${s}s...`);
-                await sleep(1000);
-            }
-            return enviarArquivo(entry, tentativa + 1);
-        }
-
-        throw new Error(data.error);
+        addLog('❌ Todos os modelos falharam para este arquivo.');
+        throw new Error('Nenhum modelo da Gemini conseguiu processar agora (todos sobrecarregados ou no limite). Tente novamente em alguns minutos.');
     }
 
     async function processFiles() {
@@ -850,6 +887,8 @@
         outputSection.classList.remove('show');
         loading.classList.add('show');
         processBtn.disabled = true;
+        document.getElementById('logEnvio').textContent = '';
+        document.getElementById('logEnvio').classList.remove('show');
 
         try {
             const totalInicial = selectedFiles.length;
@@ -860,7 +899,7 @@
                 setProgress(Math.round((processados / totalInicial) * 100));
                 setStatus(`📄 Enviando arquivo ${processados + 1} de ${totalInicial}: ${entry.file.name}`);
 
-                const data = await enviarArquivo(entry, 1);
+                const data = await enviarArquivo(entry, processados + 1, totalInicial);
 
                 // Sucesso: remove da lista imediatamente (evita reenvio duplicado se algo falhar depois)
                 selectedFiles.shift();
@@ -868,7 +907,7 @@
                 processados++;
 
                 setProgress(Math.round((processados / totalInicial) * 100));
-                setStatus(`✅ Arquivo ${processados} de ${totalInicial} salvo!`);
+                setStatus(`✅ Arquivo ${processados} de ${totalInicial} salvo com ${data.modelo || 'Gemini'}!`);
 
                 // Intervalo entre arquivos pra não bater no limite
                 if (selectedFiles.length > 0) {
