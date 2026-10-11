@@ -342,11 +342,23 @@
             padding: 11px; border-radius: 10px; cursor: pointer;
             font-size: 13px; font-weight: 700; font-family: inherit; width: 100%;
         }
-        .loading { display: none; text-align: center; padding: 20px 0 4px; }
-        .loading.show { display: block; }
-        .loading p { font-size: 13px; color: var(--ink-soft); margin-top: 8px; }
-        .log-envio { display: none; margin-top: 12px; padding: 10px 12px; background: #F5F1E8; border: 1px solid #E3DCCB; border-radius: 10px; max-height: 170px; overflow-y: auto; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11.5px; line-height: 1.55; color: var(--ink-soft); white-space: pre-wrap; word-break: break-word; }
-        .log-envio.show { display: block; }
+        .run { display: none; padding-top: 18px; }
+        .run.show { display: block; }
+        .run-top { display: flex; align-items: center; gap: 12px; }
+        .run .spinner { width: 22px; height: 22px; border-width: 2.5px; margin: 0; flex: none; }
+        .run-text { min-width: 0; }
+        .run-title { font-size: 14px; font-weight: 700; color: var(--ink); }
+        .run-sub { font-size: 12.5px; color: var(--ink-soft); margin-top: 2px; line-height: 1.4; }
+        .detalhes { display: none; margin-top: 14px; font-size: 12px; color: var(--ink-soft); }
+        .detalhes.show { display: block; }
+        .detalhes summary { cursor: pointer; list-style: none; font-weight: 600; padding: 6px 0; user-select: none; }
+        .detalhes summary::-webkit-details-marker { display: none; }
+        .detalhes summary::before { content: '▸ '; }
+        .detalhes[open] summary::before { content: '▾ '; }
+        .log-lines { max-height: 180px; overflow-y: auto; border-top: 1px solid var(--line); padding-top: 8px; }
+        .log-row { display: flex; gap: 10px; padding: 2px 0; line-height: 1.45; }
+        .log-t { color: #A99C8A; flex: none; font-variant-numeric: tabular-nums; }
+        .btn-mini { margin-top: 8px; padding: 6px 12px; font-size: 12px; font-weight: 600; border: 1px solid var(--line); background: var(--card); color: var(--ink-soft); border-radius: 8px; }
         .progress-track {
             width: 100%; height: 6px; background: var(--line);
             border-radius: 3px; margin-top: 12px; overflow: hidden;
@@ -356,7 +368,7 @@
             background: linear-gradient(90deg, var(--accent) 0%, var(--stamp) 100%);
             border-radius: 3px; transition: width 0.35s ease;
         }
-        .progress-percent { font-size: 11px; color: var(--ink-soft); margin-top: 6px; font-weight: 700; }
+        .progress-percent { font-size: 11px; color: var(--ink-soft); margin-top: 6px; text-align: right; }
         .spinner {
             border: 3px solid var(--line); border-top: 3px solid var(--accent);
             border-radius: 50%; width: 28px; height: 28px;
@@ -424,17 +436,26 @@
 
         <button class="process-btn" id="processBtn" disabled>Processar e Salvar na Planilha</button>
 
-        <div class="loading" id="loading">
-            <div class="spinner"></div>
-            <p id="loadingStatus">Processando...</p>
+        <div class="run" id="loading">
+            <div class="run-top">
+                <div class="spinner"></div>
+                <div class="run-text">
+                    <div class="run-title" id="loadingStatus">Preparando...</div>
+                    <div class="run-sub" id="loadingSub"></div>
+                </div>
+            </div>
             <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
-            <p class="progress-percent" id="progressPercent">0%</p>
+            <div class="progress-percent" id="progressPercent"></div>
         </div>
-
-        <div class="log-envio" id="logEnvio"></div>
 
         <div class="error-message" id="errorMessage"></div>
         <div class="success-message" id="successMessage"></div>
+
+        <details class="detalhes" id="detalhes">
+            <summary>Detalhes técnicos</summary>
+            <div class="log-lines" id="logEnvio"></div>
+            <button type="button" class="btn-mini" id="btnCopiarLog">Copiar detalhes</button>
+        </details>
 
         <div class="output-section" id="outputSection">
             <p class="kicker">Resultado salvo na planilha</p>
@@ -767,111 +788,288 @@
         return new Promise(r => setTimeout(r, ms));
     }
 
-    function setStatus(msg) {
-        document.getElementById('loadingStatus').textContent = msg;
-    }
+    // ===== Envio de comprovantes =====
+    // O servidor precisa estar nesta versão (o app confere antes de enviar).
+    const VERSAO_BACKEND_ESPERADA = '2026-10-09-a';
 
-    function setProgress(pct) {
-        document.getElementById('progressFill').style.width = pct + '%';
-        document.getElementById('progressPercent').textContent = pct + '%';
-    }
-
-    // Modelos em ordem de preferência (mesma lista do servidor) e quantas tentativas cada um
-    const MODELOS = [
-        { nome: 'gemini-3.6-flash', tentativas: 3 },
-        { nome: 'gemini-3.5-flash', tentativas: 3 },
-        { nome: 'gemini-3.4-flash', tentativas: 4 },
-        { nome: 'gemini-3.3-flash', tentativas: 5 }
+    // Cópia de segurança; a lista oficial vem do servidor (ping).
+    const MODELOS_PADRAO = [
+        { nome: 'gemini-3.6-flash', tentativas: 2 },
+        { nome: 'gemini-3.5-flash-lite', tentativas: 3 },
+        { nome: 'gemini-3.8-flash', tentativas: 2 },
+        { nome: 'gemini-3.5-flash', tentativas: 3 }
     ];
-    const ESPERA_ENTRE_TENTATIVAS_MS = 2000;
+    const NOMES_BONITOS = {
+        'gemini-3.6-flash': 'Gemini 3.6 Flash',
+        'gemini-3.5-flash-lite': 'Gemini 3.5 Flash-Lite',
+        'gemini-3.8-flash': 'Gemini 3.8 Flash',
+        'gemini-3.5-flash': 'Gemini 3.5 Flash'
+    };
+    const bonito = n => NOMES_BONITOS[n] || n;
 
-    function addLog(msg) {
-        const box = document.getElementById('logEnvio');
-        const hora = new Date().toLocaleTimeString('pt-BR');
-        box.textContent += (box.textContent ? '\n' : '') + `[${hora}] ${msg}`;
-        box.classList.add('show');
-        box.scrollTop = box.scrollHeight;
+    const ESPERA_ENTRE_TENTATIVAS_MS = 2000;
+    const TIMEOUT_EXTRAIR_MS = 60000;
+    const TIMEOUT_SALVAR_MS = 30000;
+
+    let processando = false;
+    let wakeLock = null;
+
+    // ---------- Tela e progresso ----------
+    function setStatus(titulo, sub) {
+        document.getElementById('loadingStatus').textContent = titulo;
+        document.getElementById('loadingSub').textContent = sub || '';
     }
 
-    // Faz o POST; se a conexão cair ("Failed to fetch"), tenta de novo até 3 vezes
-    async function postComRetryRede(payload, rotulo) {
-        const MAX_REDE = 3;
-        for (let r = 1; r <= MAX_REDE; r++) {
+    function setProgress(feitos, total) {
+        const pct = total ? Math.round((feitos / total) * 100) : 0;
+        document.getElementById('progressFill').style.width = pct + '%';
+        document.getElementById('progressPercent').textContent = total ? `${feitos} de ${total}` : '';
+    }
+
+    // ---------- Detalhes técnicos (fechado por padrão) ----------
+    const logLinhas = [];
+    function addLog(msg) {
+        const hora = new Date().toLocaleTimeString('pt-BR');
+        logLinhas.push(`${hora}  ${msg}`);
+        const box = document.getElementById('logEnvio');
+        const linha = document.createElement('div');
+        linha.className = 'log-row';
+        const t = document.createElement('span');
+        t.className = 'log-t';
+        t.textContent = hora;
+        const m = document.createElement('span');
+        m.textContent = msg;
+        linha.appendChild(t);
+        linha.appendChild(m);
+        box.appendChild(linha);
+        box.scrollTop = box.scrollHeight;
+        document.getElementById('detalhes').classList.add('show');
+    }
+    function limparLog() {
+        logLinhas.length = 0;
+        document.getElementById('logEnvio').innerHTML = '';
+        const d = document.getElementById('detalhes');
+        d.classList.remove('show');
+        d.open = false;
+    }
+    document.getElementById('btnCopiarLog').addEventListener('click', async (ev) => {
+        const btn = ev.currentTarget;
+        try { await navigator.clipboard.writeText(logLinhas.join('\n')); btn.textContent = 'Copiado!'; }
+        catch (e) { btn.textContent = 'Não consegui copiar'; }
+        setTimeout(() => { btn.textContent = 'Copiar detalhes'; }, 1800);
+    });
+
+    // ---------- Manter a tela ligada durante o envio ----------
+    // (celular que apaga a tela derruba a conexão: era uma das causas do "Failed to fetch")
+    async function ligarTela() {
+        try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
+    }
+    function soltarTela() {
+        try { if (wakeLock) wakeLock.release(); } catch (e) {}
+        wakeLock = null;
+    }
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && processando) ligarTela();
+    });
+
+    // ---------- Conversa com o servidor ----------
+    // Erros de comunicação voltam com e.tipo = 'timeout' | 'rede' | 'invalida'
+    async function chamarBackend(payload, timeoutMs) {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+        const erro = tipo => { const e = new Error(tipo); e.tipo = tipo; return e; };
+        try {
+            let res;
             try {
-                const res = await fetch(BACKEND_URL, {
+                res = await fetch(BACKEND_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify(payload),
+                    signal: ctrl.signal
                 });
-                return await res.json();
-            } catch (netErr) {
-                if (r >= MAX_REDE) {
-                    throw new Error(`Falha de conexão (${rotulo}) após ${MAX_REDE} tentativas. Verifique a internet e tente de novo.`);
-                }
-                addLog(`📡 Conexão caiu (${rotulo}). Tentando de novo em 5s... (${r}/${MAX_REDE})`);
-                await sleep(5000);
+            } catch (e) {
+                throw erro(e.name === 'AbortError' ? 'timeout' : 'rede');
             }
+            try {
+                return await res.json();
+            } catch (e) {
+                throw erro(e.name === 'AbortError' ? 'timeout' : 'invalida');
+            }
+        } finally {
+            clearTimeout(timer);
         }
     }
 
-    async function enviarArquivo(entry, posicao, total) {
-        const { base64, mimeType } = await fileToBase64(entry.file);
-        const tamanhoMB = (entry.file.size / (1024 * 1024)).toFixed(2);
-        addLog(`📄 Arquivo ${posicao}/${total}: ${entry.file.name} (${tamanhoMB} MB)`);
+    async function verificarServidor() {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 25000);
+        try {
+            const res = await fetch(BACKEND_URL + '?action=ping&secret=' + encodeURIComponent(SHARED_SECRET), { signal: ctrl.signal });
+            const data = await res.json();
+            if (data.error) return { ok: false, motivo: data.error };
+            if (data.versao !== VERSAO_BACKEND_ESPERADA) return { desatualizado: true, versao: data.versao };
+            return { ok: true, modelos: data.modelos };
+        } catch (e) {
+            return { ok: false, motivo: e.name === 'AbortError' ? 'sem resposta em 25s' : 'sem conexão' };
+        } finally {
+            clearTimeout(timer);
+        }
+    }
 
-        for (let m = 0; m < MODELOS.length; m++) {
-            const { nome, tentativas } = MODELOS[m];
-            const proximo = MODELOS[m + 1] ? MODELOS[m + 1].nome : null;
+    // ---------- Modelos: o que funcionou por último vai primeiro (por 30 min) ----------
+    function ordenarModelos(lista) {
+        try {
+            const raw = localStorage.getItem('ultimoModeloOk');
+            if (!raw) return lista;
+            const { nome, ts } = JSON.parse(raw);
+            if (Date.now() - ts > 30 * 60 * 1000) return lista;
+            const i = lista.findIndex(m => m.nome === nome);
+            if (i <= 0) return lista;
+            return [lista[i]].concat(lista.filter((_, j) => j !== i));
+        } catch (e) { return lista; }
+    }
+    function lembrarModelo(nome) {
+        try { localStorage.setItem('ultimoModeloOk', JSON.stringify({ nome, ts: Date.now() })); } catch (e) {}
+    }
+
+    function descreverFalha(d) {
+        if (d.detalhe && /fora do formato|vazia/i.test(d.detalhe)) return d.detalhe;
+        if (d.status === 429) return 'limite de uso atingido';
+        if (d.status === 404) return 'modelo indisponível';
+        if ([500, 502, 503, 504].includes(d.status)) return `Google sobrecarregado (erro ${d.status})`;
+        return `erro ${d.status}${d.detalhe ? ': ' + d.detalhe : ''}`;
+    }
+
+    // PASSO 1: ler o comprovante (tenta um modelo por vez; não grava nada)
+    async function extrairComFallback(entry, base64, mimeType, posicao, total, modelos) {
+        let redeSeguidas = 0;
+        for (let m = 0; m < modelos.length; m++) {
+            const { nome, tentativas } = modelos[m];
+            const proximo = modelos[m + 1] ? bonito(modelos[m + 1].nome) : null;
 
             for (let t = 1; t <= tentativas; t++) {
-                setStatus(`📄 Arquivo ${posicao} de ${total} · 🤖 ${nome} · tentativa ${t} de ${tentativas}`);
-                addLog(`🤖 Tentando ${nome} (tentativa ${t}/${tentativas})...`);
+                setStatus(`Arquivo ${posicao} de ${total}`, `Lendo com ${bonito(nome)} · tentativa ${t} de ${tentativas}`);
+                addLog(`${bonito(nome)}: tentativa ${t}/${tentativas}`);
 
-                const inicio = Date.now();
-                const data = await postComRetryRede({
-                    fileBase64: base64,
-                    mimeType,
-                    format: selectedFormat,
-                    fileName: entry.file.name,
-                    customName: entry.customName,
-                    modelo: nome,
-                    secret: SHARED_SECRET
-                }, nome);
-                const seg = ((Date.now() - inicio) / 1000).toFixed(1);
+                const ini = Date.now();
+                let data;
+                try {
+                    data = await chamarBackend({
+                        action: 'extrair',
+                        fileBase64: base64,
+                        mimeType,
+                        format: selectedFormat,
+                        fileName: entry.file.name,
+                        customName: entry.customName,
+                        modelo: nome,
+                        secret: SHARED_SECRET
+                    }, TIMEOUT_EXTRAIR_MS);
+                    redeSeguidas = 0;
+                } catch (e) {
+                    const seg = Math.round((Date.now() - ini) / 1000);
+                    if (e.tipo === 'rede') {
+                        redeSeguidas++;
+                        addLog(`Sem conexão com o servidor (${seg}s)`);
+                        if (redeSeguidas >= 3) {
+                            throw new Error('Sem conexão com o servidor do Google. Confira a internet (Wi-Fi ou dados) e tente de novo.');
+                        }
+                    } else if (e.tipo === 'timeout') {
+                        addLog(`${bonito(nome)}: sem resposta em ${seg}s`);
+                    } else {
+                        addLog('Resposta inválida do servidor');
+                    }
+                    if (t < tentativas) {
+                        setStatus(`Arquivo ${posicao} de ${total}`, 'Servidor ocupado — nova tentativa em instantes');
+                        await sleep(ESPERA_ENTRE_TENTATIVAS_MS);
+                        continue;
+                    }
+                    if (proximo) addLog(`Passando para ${proximo}`);
+                    break;
+                }
 
-                // Sucesso
+                const seg = ((Date.now() - ini) / 1000).toFixed(1);
+
                 if (!data.error) {
-                    addLog(`✅ Salvo na planilha com ${data.modelo || nome} (tentativa ${t}, ${seg}s)`);
+                    addLog(`${bonito(data.modelo || nome)}: leu em ${seg}s`);
+                    lembrarModelo(nome);
                     return data;
                 }
 
-                // Falha do modelo (não do app): decide entre tentar de novo ou trocar de modelo
                 if (data.error === 'MODEL_FAIL') {
-                    if (data.retry === 'temp') {
-                        if (t < tentativas) {
-                            addLog(`⚠️ ${nome} sobrecarregado (erro ${data.status}, ${seg}s). Tentando de novo em ${ESPERA_ENTRE_TENTATIVAS_MS / 1000}s...`);
-                            await sleep(ESPERA_ENTRE_TENTATIVAS_MS);
-                            continue;
-                        }
-                        addLog(`⚠️ ${nome} continuou sobrecarregado nas ${tentativas} tentativas (erro ${data.status}).`);
-                    } else {
-                        const motivo = data.status === 429 ? 'limite de uso atingido (429)'
-                                     : data.status === 404 ? 'modelo indisponível (404)'
-                                     : `erro ${data.status}: ${data.detalhe || 'sem detalhes'}`;
-                        addLog(`⏭️ ${nome}: ${motivo}.`);
+                    addLog(`${bonito(nome)}: ${descreverFalha(data)} (${seg}s)`);
+                    if (data.retry === 'temp' && t < tentativas) {
+                        setStatus(`Arquivo ${posicao} de ${total}`, `${bonito(nome)} ocupado — tentando de novo em ${ESPERA_ENTRE_TENTATIVAS_MS / 1000}s`);
+                        await sleep(ESPERA_ENTRE_TENTATIVAS_MS);
+                        continue;
                     }
-                    if (proximo) addLog(`↪️ Passando para ${proximo}...`);
-                    break; // sai do loop de tentativas e vai pro próximo modelo
+                    if (proximo) addLog(`Passando para ${proximo}`);
+                    break;
                 }
 
-                // Qualquer outro erro (senha errada, planilha, etc.) não adianta repetir
-                addLog(`❌ Erro: ${data.error}`);
+                // Qualquer outro erro (senha, planilha...) não adianta repetir
+                addLog(`Erro: ${data.error}`);
                 throw new Error(data.error);
             }
         }
+        throw new Error('Nenhum modelo da Gemini conseguiu ler este arquivo agora (todos sobrecarregados ou no limite). Tente de novo em alguns minutos.');
+    }
 
-        addLog('❌ Todos os modelos falharam para este arquivo.');
-        throw new Error('Nenhum modelo da Gemini conseguiu processar agora (todos sobrecarregados ou no limite). Tente novamente em alguns minutos.');
+    // PASSO 2: gravar na planilha. Pode repetir à vontade: o servidor não duplica.
+    async function salvarLinha(requestId, row) {
+        const MAX = 4;
+        for (let r = 1; r <= MAX; r++) {
+            try {
+                const data = await chamarBackend({
+                    action: 'salvar',
+                    format: selectedFormat,
+                    row,
+                    requestId,
+                    secret: SHARED_SECRET
+                }, TIMEOUT_SALVAR_MS);
+                if (data.error === 'SERVIDOR_OCUPADO') {
+                    addLog('Planilha ocupada, tentando de novo');
+                    await sleep(3000);
+                    continue;
+                }
+                if (data.error) throw new Error(data.error);
+                return data;
+            } catch (e) {
+                if (!e.tipo) throw e; // erro "de verdade" do servidor: não repete
+                if (r >= MAX) {
+                    throw new Error('Li o comprovante, mas não consegui confirmar a gravação na planilha. Confira a planilha; se não estiver lá, toque em Processar de novo (não duplica).');
+                }
+                addLog(`Falha ao gravar (${e.tipo}), tentando de novo ${r}/${MAX - 1}`);
+                await sleep(3000);
+            }
+        }
+    }
+
+    function novoId() {
+        try { if (crypto.randomUUID) return crypto.randomUUID(); } catch (e) {}
+        return Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+    }
+
+    async function enviarArquivo(entry, posicao, total, modelos) {
+        if (!entry.requestId) entry.requestId = novoId();
+        const idDaGravacao = entry.requestId + '_' + selectedFormat;
+
+        addLog(`Arquivo ${posicao}/${total}: ${entry.file.name}`);
+
+        // Se a leitura já foi feita numa tentativa anterior, não precisa ler de novo
+        let extraido = (entry.extraido && entry.extraidoFormato === selectedFormat) ? entry.extraido : null;
+        if (extraido) {
+            addLog('Leitura já feita antes; falta só gravar');
+        } else {
+            const { base64, mimeType } = await fileToBase64(entry.file);
+            extraido = await extrairComFallback(entry, base64, mimeType, posicao, total, modelos);
+            entry.extraido = extraido;
+            entry.extraidoFormato = selectedFormat;
+        }
+
+        setStatus(`Arquivo ${posicao} de ${total}`, 'Gravando na planilha...');
+        const salvo = await salvarLinha(idDaGravacao, extraido.row);
+        addLog(salvo.duplicado ? 'Já estava gravado (não duplicou)' : `Gravado na linha ${salvo.linha}`);
+        return { modelo: extraido.modelo, linha: salvo.linha };
     }
 
     async function processFiles() {
@@ -879,55 +1077,69 @@
         const errorMessage = document.getElementById('errorMessage');
         const successMessage = document.getElementById('successMessage');
         const outputSection = document.getElementById('outputSection');
-        const outputBox = document.getElementById('outputBox');
         const processBtn = document.getElementById('processBtn');
 
         errorMessage.classList.remove('show');
         successMessage.classList.remove('show');
         outputSection.classList.remove('show');
+        limparLog();
         loading.classList.add('show');
         processBtn.disabled = true;
-        document.getElementById('logEnvio').textContent = '';
-        document.getElementById('logEnvio').classList.remove('show');
+        processando = true;
+        await ligarTela();
 
         try {
             const totalInicial = selectedFiles.length;
             let processados = 0;
+            const usados = [];
+            setProgress(0, totalInicial);
+
+            setStatus('Verificando conexão', 'Conferindo o servidor...');
+            addLog('Conferindo o servidor');
+            const srv = await verificarServidor();
+            if (srv.desatualizado) {
+                addLog(`Servidor na versão "${srv.versao || 'antiga'}"; esperado "${VERSAO_BACKEND_ESPERADA}"`);
+                throw new Error('O servidor (Apps Script) ainda está na versão antiga. Cole o Code.gs novo e faça: Implantar → Gerenciar implantações → lápis → Nova versão → Implantar.');
+            }
+            let modeloBase = MODELOS_PADRAO;
+            if (srv.ok) {
+                addLog('Servidor ok');
+                if (srv.modelos && srv.modelos.length) modeloBase = srv.modelos;
+            } else {
+                addLog(`Não consegui conferir o servidor (${srv.motivo}); seguindo assim mesmo`);
+            }
 
             while (selectedFiles.length > 0) {
-                const entry = selectedFiles[0]; // sempre pega o primeiro restante
-                setProgress(Math.round((processados / totalInicial) * 100));
-                setStatus(`📄 Enviando arquivo ${processados + 1} de ${totalInicial}: ${entry.file.name}`);
+                const entry = selectedFiles[0]; // sempre o primeiro que sobrou
+                setProgress(processados, totalInicial);
 
-                const data = await enviarArquivo(entry, processados + 1, totalInicial);
+                const r = await enviarArquivo(entry, processados + 1, totalInicial, ordenarModelos(modeloBase));
 
-                // Sucesso: remove da lista imediatamente (evita reenvio duplicado se algo falhar depois)
+                // Gravou: sai da lista na hora (se algo falhar depois, não reenvia este)
                 selectedFiles.shift();
                 updateFileList();
                 processados++;
+                usados.push(bonito(r.modelo));
+                setProgress(processados, totalInicial);
 
-                setProgress(Math.round((processados / totalInicial) * 100));
-                setStatus(`✅ Arquivo ${processados} de ${totalInicial} salvo com ${data.modelo || 'Gemini'}!`);
-
-                // Intervalo entre arquivos pra não bater no limite
-                if (selectedFiles.length > 0) {
-                    for (let s = 5; s > 0; s--) {
-                        setStatus(`✅ ${processados} de ${totalInicial} salvos! Próximo em ${s}s...`);
-                        await sleep(1000);
-                    }
-                }
+                if (selectedFiles.length > 0) await sleep(1000);
             }
 
             loading.classList.remove('show');
-            successMessage.textContent = `✅ ${totalInicial} arquivo(s) salvo(s) direto na planilha!`;
+            const unicos = Array.from(new Set(usados)).join(', ');
+            successMessage.textContent = `✅ ${totalInicial} arquivo(s) salvo(s) na planilha! (${unicos})`;
             successMessage.classList.add('show');
             updateFileList();
 
-        } catch(error) {
+        } catch (error) {
+            addLog(`Parou: ${error.message}`);
             loading.classList.remove('show');
-            errorMessage.textContent = '❌ ' + error.message + ' (o que já foi salvo com sucesso não precisa ser reenviado — é só clicar em Processar de novo pra continuar com o restante)';
+            errorMessage.textContent = '❌ ' + error.message + (selectedFiles.length ? ' · O que já foi gravado saiu da lista: é só tocar em Processar de novo para continuar.' : '');
             errorMessage.classList.add('show');
             processBtn.disabled = selectedFiles.length === 0;
+        } finally {
+            processando = false;
+            soltarTela();
         }
     }
 
@@ -940,6 +1152,7 @@
         document.getElementById('errorMessage').classList.remove('show');
         document.getElementById('outputBox').value = '';
         setProgress(0);
+        limparLog();
     });
 
     const copyBtn = document.getElementById('copyBtn');
