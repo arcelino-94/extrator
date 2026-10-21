@@ -379,6 +379,110 @@
             padding: 11px 13px; border-radius: 8px; margin-top: 12px;
             display: none; font-size: 13px; font-weight: 600; line-height: 1.5;
         }
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.4);
+            z-index: 1000;
+            padding: 16px;
+            overflow-y: auto;
+        }
+        .modal.show {
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+        }
+        .modal-content {
+            background: var(--card);
+            border-radius: 16px 16px 0 0;
+            padding: 0;
+            width: 100%;
+            max-width: 100%;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
+            animation: slideUp 0.3s ease-out;
+            margin-top: auto;
+        }
+        @keyframes slideUp {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .modal-header {
+            padding: 18px 20px;
+            border-bottom: 1px solid var(--line);
+            position: relative;
+        }
+        .modal-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin: 0;
+            color: var(--ink);
+        }
+        .modal-body {
+            padding: 16px 20px;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+        .modal-footer {
+            display: flex;
+            gap: 10px;
+            padding: 16px 20px;
+            border-top: 1px solid var(--line);
+        }
+        .modal-close {
+            line-height: 1;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.4);
+            z-index: 1000;
+            padding: 16px;
+            overflow-y: auto;
+        }
+        .modal.show {
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+        }
+        .modal-content {
+            background: var(--card);
+            border-radius: 16px 16px 0 0;
+            padding: 0;
+            width: 100%;
+            max-width: 100%;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
+            animation: slideUp 0.3s ease-out;
+            margin-top: auto;
+        }
+        @keyframes slideUp {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .modal-header {
+            padding: 18px 20px;
+            border-bottom: 1px solid var(--line);
+            position: relative;
+        }
+        .modal-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin: 0;
+            color: var(--ink);
+        }
+        .modal-body {
+            padding: 16px 20px;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+        .modal-footer {
+            display: flex;
+            gap: 10px;
+            padding: 16px 20px;
+            border-top: 1px solid var(--line);
+        }
         .error-message { background: var(--danger-soft); color: var(--danger); border-left: 3px solid var(--danger); }
         .success-message { background: var(--stamp-soft); color: var(--stamp); border-left: 3px solid var(--stamp); }
         .error-message.show, .success-message.show { display: block; }
@@ -403,6 +507,33 @@
         <div id="contasBody">
             <div class="contas-loading">
                 <div class="spinner-small"></div><br>Carregando contas...
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para marcar múltiplas contas como pagas -->
+    <div class="modal" id="modalPagamento">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Marcar pagamento</h2>
+                <button type="button" id="modalClose" class="modal-close" style="position: absolute; top: 12px; right: 12px; background: none; border: none; font-size: 24px; cursor: pointer; color: var(--ink); padding: 0; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">×</button>
+            </div>
+            <div class="modal-body">
+                <div style="margin-bottom: 16px;">
+                    <label style="display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--plum); color: white; border-radius: 8px; cursor: pointer; font-weight: 600;">
+                        <input type="checkbox" id="modalCheckAll" style="width: 18px; height: 18px; cursor: pointer;">
+                        <span>Marcar/Desmarcar todas</span>
+                    </label>
+                </div>
+                <div id="modalCheckboxes" style="max-height: 280px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 16px; background: var(--paper);"></div>
+                <div style="margin-bottom: 16px;">
+                    <label style="font-size: 13px; font-weight: 600; color: var(--ink-soft); display: block; margin-bottom: 8px;">Data do pagamento</label>
+                    <input type="date" id="modalData" style="width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; font-family: inherit; box-sizing: border-box;">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="modalCancelar" style="flex: 1; padding: 12px; background: var(--line); color: var(--ink); border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 15px;">Cancelar</button>
+                <button type="button" id="modalConfirmar" style="flex: 1; padding: 12px; background: var(--accent); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 15px; margin-left: 10px;">Confirmar</button>
             </div>
         </div>
     </div>
@@ -590,6 +721,7 @@
             html += '<div class="secao-label">🔴 Em atraso</div>';
             atrasadas.forEach((c, i) => { html += cartao(c, 'danger', i); });
             if (atrasadas.length > 1) {
+                html += `<button class="btn-copiar-contas" id="btnMarcarAtrasadas" style="margin-top:4px">✅ Marcar ${atrasadas.length} como paga</button>`;
                 html += `<button class="btn-copiar-contas" id="btnCopiarAtrasadas" style="margin-top:4px">📋 Copiar todas em atraso</button>`;
             }
         }
@@ -598,6 +730,7 @@
             html += `<div class="secao-label" ${atrasadas.length > 0 ? 'style="margin-top:20px"' : ''}>⚠️ Vence hoje</div>`;
             hoje.forEach((c, i) => { html += cartao(c, 'hoje', i); });
             if (hoje.length > 1) {
+                html += `<button class="btn-copiar-contas" id="btnMarcarHoje" style="margin-top:4px">✅ Marcar ${hoje.length} como paga</button>`;
                 html += `<button class="btn-copiar-contas" id="btnCopiarHoje" style="margin-top:4px">📋 Copiar todas de hoje</button>`;
             }
         }
@@ -609,6 +742,12 @@
         }
 
         body.innerHTML = html;
+
+        // Botões de marcar múltiplas
+        const btnMarcarAtrasadas = document.getElementById('btnMarcarAtrasadas');
+        const btnMarcarHoje = document.getElementById('btnMarcarHoje');
+        if (btnMarcarAtrasadas) btnMarcarAtrasadas.addEventListener('click', () => abrirModalPagamento(atrasadas));
+        if (btnMarcarHoje) btnMarcarHoje.addEventListener('click', () => abrirModalPagamento(hoje));
 
         // Função para marcar como pago
         async function marcarComoPago(conta, cor, idx) {
@@ -1210,6 +1349,104 @@
             navigator.clipboard.writeText(text).catch(() => { outputBox.select(); document.execCommand('copy'); });
         } else { outputBox.select(); document.execCommand('copy'); }
     });
+
+    // ===== Modal para marcar múltiplas contas =====
+    const modalPagamento = document.getElementById('modalPagamento');
+    const modalCheckAll = document.getElementById('modalCheckAll');
+    const modalCheckboxes = document.getElementById('modalCheckboxes');
+    const modalData = document.getElementById('modalData');
+    const modalCancelar = document.getElementById('modalCancelar');
+    const modalConfirmar = document.getElementById('modalConfirmar');
+    const modalClose = document.getElementById('modalClose');
+
+    const hoje = new Date().toISOString().split('T')[0];
+    modalData.value = hoje;
+
+    let contasModalSelecionadas = [];
+
+    function abrirModalPagamento(contas) {
+        contasModalSelecionadas = contas;
+        modalCheckAll.checked = true;
+        modalData.value = hoje;
+
+        modalCheckboxes.innerHTML = contas.map((c, i) => `
+            <label style="display: flex; align-items: center; gap: 10px; padding: 8px 0; cursor: pointer;">
+                <input type="checkbox" data-idx="${i}" checked style="width: 16px; height: 16px; margin: 0; cursor: pointer;">
+                <span style="flex: 1; font-size: 14px;">${(c.nome || '').replace(/"/g, '&quot;')}</span>
+                <span style="font-size: 12px; color: var(--ink-soft); flex-shrink: 0;">${(c.vencimento || '').replace(/"/g, '&quot;')}</span>
+            </label>
+        `).join('');
+
+        const checkboxes = modalCheckboxes.querySelectorAll('input[type="checkbox"]');
+        const handleCheckAll = () => checkboxes.forEach(cb => cb.checked = modalCheckAll.checked);
+        const handleIndividual = () => {
+            const todos = Array.from(checkboxes).every(c => c.checked);
+            modalCheckAll.checked = todos;
+        };
+        modalCheckAll.removeEventListener('change', handleCheckAll);
+        modalCheckAll.addEventListener('change', handleCheckAll);
+        checkboxes.forEach(cb => {
+            cb.removeEventListener('change', handleIndividual);
+            cb.addEventListener('change', handleIndividual);
+        });
+
+        modalPagamento.classList.add('show');
+    }
+
+    function fecharModal() {
+        modalPagamento.classList.remove('show');
+        contasModalSelecionadas = [];
+    }
+
+    modalCancelar.addEventListener('click', fecharModal);
+    modalClose.addEventListener('click', fecharModal);
+    modalPagamento.addEventListener('click', (ev) => {
+        if (ev.target === modalPagamento) fecharModal();
+    });
+
+    modalConfirmar.addEventListener('click', async () => {
+        const checkboxes = modalCheckboxes.querySelectorAll('input[type="checkbox"]');
+        const marcadas = Array.from(checkboxes)
+            .filter(cb => cb.checked)
+            .map(cb => contasModalSelecionadas[Number(cb.dataset.idx)]);
+
+        if (marcadas.length === 0) {
+            alert('Selecione pelo menos uma conta');
+            return;
+        }
+
+        const data = modalData.value;
+        if (!data) {
+            alert('Selecione a data');
+            return;
+        }
+
+        fecharModal();
+        let erros = 0;
+        for (const conta of marcadas) {
+            try {
+                await chamarBackend({
+                    action: 'gravarPagamento',
+                    nome: conta.nome,
+                    vencimento: conta.vencimento,
+                    dataPagamento: data,
+                    secret: SHARED_SECRET
+                }, 25000);
+            } catch (e) {
+                erros++;
+            }
+        }
+
+        if (erros === 0) {
+            alert('✅ ' + marcadas.length + ' conta(s) marcada(s) como paga!');
+        } else {
+            alert('❌ ' + erros + ' conta(s) falharam ao marcar');
+        }
+        carregarContas();
+    });
+
+    // Expõe para o renderContas usar
+    window.abrirModalPagamento = abrirModalPagamento;
 
     // Service Worker
     if ('serviceWorker' in navigator) {
