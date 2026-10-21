@@ -143,16 +143,28 @@
         }
         .secao-label:first-child { margin-top: 0; }
 
+
         .conta-card {
-            background: var(--paper);
-            border: 1px solid var(--line);
-            border-radius: 10px;
-            padding: 11px 13px;
-            margin-bottom: 8px;
+            border-left: 3px solid var(--plum);
+            background: var(--card);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 12px;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
         }
-        .conta-card.hoje {
-            border-color: var(--warn);
-            background: var(--warn-soft);
+        .conta-detalhes {
+            font-size: 12px;
+            color: var(--ink-soft);
+            margin-top: 4px;
+            line-height: 1.4;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+        .modal-body {
+            padding: 16px 20px;
+            max-height: 55vh;
+            overflow-y: auto;
         }
         .conta-nome {
             font-size: 13.5px;
@@ -379,110 +391,6 @@
             padding: 11px 13px; border-radius: 8px; margin-top: 12px;
             display: none; font-size: 13px; font-weight: 600; line-height: 1.5;
         }
-        .modal {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.4);
-            z-index: 1000;
-            padding: 16px;
-            overflow-y: auto;
-        }
-        .modal.show {
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-end;
-        }
-        .modal-content {
-            background: var(--card);
-            border-radius: 16px 16px 0 0;
-            padding: 0;
-            width: 100%;
-            max-width: 100%;
-            box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
-            animation: slideUp 0.3s ease-out;
-            margin-top: auto;
-        }
-        @keyframes slideUp {
-            from { transform: translateY(100%); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-        .modal-header {
-            padding: 18px 20px;
-            border-bottom: 1px solid var(--line);
-            position: relative;
-        }
-        .modal-title {
-            font-size: 18px;
-            font-weight: 700;
-            margin: 0;
-            color: var(--ink);
-        }
-        .modal-body {
-            padding: 16px 20px;
-            max-height: 60vh;
-            overflow-y: auto;
-        }
-        .modal-footer {
-            display: flex;
-            gap: 10px;
-            padding: 16px 20px;
-            border-top: 1px solid var(--line);
-        }
-        .modal-close {
-            line-height: 1;
-        }
-
-        .modal {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.4);
-            z-index: 1000;
-            padding: 16px;
-            overflow-y: auto;
-        }
-        .modal.show {
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-end;
-        }
-        .modal-content {
-            background: var(--card);
-            border-radius: 16px 16px 0 0;
-            padding: 0;
-            width: 100%;
-            max-width: 100%;
-            box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
-            animation: slideUp 0.3s ease-out;
-            margin-top: auto;
-        }
-        @keyframes slideUp {
-            from { transform: translateY(100%); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-        .modal-header {
-            padding: 18px 20px;
-            border-bottom: 1px solid var(--line);
-            position: relative;
-        }
-        .modal-title {
-            font-size: 18px;
-            font-weight: 700;
-            margin: 0;
-            color: var(--ink);
-        }
-        .modal-body {
-            padding: 16px 20px;
-            max-height: 60vh;
-            overflow-y: auto;
-        }
-        .modal-footer {
-            display: flex;
-            gap: 10px;
-            padding: 16px 20px;
-            border-top: 1px solid var(--line);
-        }
         .error-message { background: var(--danger-soft); color: var(--danger); border-left: 3px solid var(--danger); }
         .success-message { background: var(--stamp-soft); color: var(--stamp); border-left: 3px solid var(--stamp); }
         .error-message.show, .success-message.show { display: block; }
@@ -507,28 +415,6 @@
         <div id="contasBody">
             <div class="contas-loading">
                 <div class="spinner-small"></div><br>Carregando contas...
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal para marcar múltiplas contas como pagas -->
-    <div class="modal" id="modalPagamento">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 class="modal-title">Marcar pagamento</h2>
-                <button type="button" id="modalClose" class="modal-close" style="position: absolute; top: 12px; right: 12px; background: none; border: none; font-size: 24px; cursor: pointer; color: var(--ink); padding: 0; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">×</button>
-            </div>
-            <div class="modal-body">
-                <div style="margin-bottom: 16px;">
-                    <label style="font-size: 13px; font-weight: 600; color: var(--ink-soft); display: block; margin-bottom: 8px;">Data do pagamento</label>
-                    <input type="date" id="modalData" style="width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; font-family: inherit; box-sizing: border-box;">
-                </div>
-                <div style="margin-bottom: 16px; font-size: 13px; font-weight: 600; color: var(--ink-soft);">Selecione as contas (clique para marcar/desmarcar):</div>
-                <div id="modalCheckboxes" style="max-height: 320px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 16px; background: var(--paper);"></div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" id="modalCancelar" style="flex: 1; padding: 12px; background: var(--line); color: var(--ink); border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 15px;">Cancelar</button>
-                <button type="button" id="modalConfirmar" style="flex: 1; padding: 12px; background: var(--accent); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 15px; margin-left: 10px;">Confirmar</button>
             </div>
         </div>
     </div>
@@ -714,9 +600,6 @@
 
         if (atrasadas.length > 0) {
             html += '<div class="secao-label">🔴 Em atraso</div>';
-            if (atrasadas.length > 1) {
-                html += `<button class="btn-copiar-contas" id="btnMarcarAtrasadas" style="margin-bottom:8px">✅ Marcar ${atrasadas.length} como paga</button>`;
-            }
             atrasadas.forEach((c, i) => { html += cartao(c, 'danger', i); });
             if (atrasadas.length > 1) {
                 html += `<button class="btn-copiar-contas" id="btnCopiarAtrasadas" style="margin-top:4px">📋 Copiar todas em atraso</button>`;
@@ -725,9 +608,6 @@
 
         if (hoje.length > 0) {
             html += `<div class="secao-label" ${atrasadas.length > 0 ? 'style="margin-top:20px"' : ''}>⚠️ Vence hoje</div>`;
-            if (hoje.length > 1) {
-                html += `<button class="btn-copiar-contas" id="btnMarcarHoje" style="margin-bottom:8px">✅ Marcar ${hoje.length} como paga</button>`;
-            }
             hoje.forEach((c, i) => { html += cartao(c, 'hoje', i); });
             if (hoje.length > 1) {
                 html += `<button class="btn-copiar-contas" id="btnCopiarHoje" style="margin-top:4px">📋 Copiar todas de hoje</button>`;
@@ -741,12 +621,6 @@
         }
 
         body.innerHTML = html;
-
-        // Botões de marcar múltiplas
-        const btnMarcarAtrasadas = document.getElementById('btnMarcarAtrasadas');
-        const btnMarcarHoje = document.getElementById('btnMarcarHoje');
-        if (btnMarcarAtrasadas) btnMarcarAtrasadas.addEventListener('click', () => abrirModalPagamento(atrasadas));
-        if (btnMarcarHoje) btnMarcarHoje.addEventListener('click', () => abrirModalPagamento(hoje));
 
         // Função para marcar como pago
         async function marcarComoPago(conta, cor, idx) {
@@ -866,8 +740,20 @@
             copiarTexto(textoTodas(hoje), btnHoje, '📋 Copiar todas de hoje'));
     }
 
-    document.getElementById('btnRefresh').addEventListener('click', carregarContas);
-    carregarContas(); // carrega ao abrir
+    
+    async function atualizarComLimpeza() {
+        try {
+            if ('caches' in window) {
+                const chaves = await caches.keys();
+                await Promise.all(chaves.map(k => caches.delete(k)));
+            }
+        } catch (e) {}
+        carregarContas();
+    }
+
+    document.getElementById('btnRefresh').addEventListener('click', atualizarComLimpeza);
+    atualizarComLimpeza(); // carrega ao abrir
+
 
     // ================================================================
     // ABA EXTRATOR
@@ -1348,126 +1234,6 @@
             navigator.clipboard.writeText(text).catch(() => { outputBox.select(); document.execCommand('copy'); });
         } else { outputBox.select(); document.execCommand('copy'); }
     });
-
-    // ===== Modal para marcar múltiplas contas =====
-    const modalPagamento = document.getElementById('modalPagamento');
-    const modalCheckboxes = document.getElementById('modalCheckboxes');
-    const modalData = document.getElementById('modalData');
-    const modalCancelar = document.getElementById('modalCancelar');
-    const modalConfirmar = document.getElementById('modalConfirmar');
-    const modalClose = document.getElementById('modalClose');
-
-    const hoje = new Date().toISOString().split('T')[0];
-    modalData.value = hoje;
-
-    let contasModalSelecionadas = [];
-    let valoresEditados = {}; // { nomeVencimento: novoValor }
-
-    function abrirModalPagamento(contas) {
-        contasModalSelecionadas = contas;
-        valoresEditados = {};
-        modalData.value = hoje;
-
-        // Monta lista de contas com checkbox e campo de valor
-        modalCheckboxes.innerHTML = contas.map((c, i) => {
-            const chaveValor = c.nome + '|' + c.vencimento;
-            const valorExibido = (c.valor || '0').toString().replace(/\./g, ',');
-            return `
-            <div style="display: flex; gap: 10px; padding: 10px; border-bottom: 1px solid var(--line); align-items: center;">
-                <input type="checkbox" data-idx="${i}" checked style="width: 18px; height: 18px; margin: 0; cursor: pointer; flex-shrink: 0;">
-                <div style="flex: 1; min-width: 0;">
-                    <div style="font-size: 14px; font-weight: 600; color: var(--ink);">${(c.nome || '').replace(/"/g, '&quot;')}</div>
-                    <div style="font-size: 12px; color: var(--ink-soft);">${(c.vencimento || '').replace(/"/g, '&quot;')}</div>
-                </div>
-                <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
-                    <span style="font-size: 12px; color: var(--ink-soft);">R$</span>
-                    <input type="text" data-chave="${chaveValor}" value="${valorExibido}" style="width: 70px; padding: 6px; border: 1px solid var(--line); border-radius: 6px; font-size: 14px; text-align: right;" placeholder="0,00">
-                </div>
-            </div>
-            `;
-        }).join('');
-
-        // Listeners para checkboxes
-        const checkboxes = modalCheckboxes.querySelectorAll('input[type="checkbox"]');
-        checkboxes.forEach(cb => {
-            cb.addEventListener('change', () => {
-                // Nada especial, só permite desselecionar
-            });
-        });
-
-        // Listeners para inputs de valor
-        const inputsValor = modalCheckboxes.querySelectorAll('input[type="text"]');
-        inputsValor.forEach(inp => {
-            inp.addEventListener('change', () => {
-                const chave = inp.dataset.chave;
-                valoresEditados[chave] = inp.value;
-            });
-        });
-
-        modalPagamento.classList.add('show');
-    }
-
-    function fecharModal() {
-        modalPagamento.classList.remove('show');
-        contasModalSelecionadas = [];
-        valoresEditados = {};
-    }
-
-    modalCancelar.addEventListener('click', fecharModal);
-    modalClose.addEventListener('click', fecharModal);
-    modalPagamento.addEventListener('click', (ev) => {
-        if (ev.target === modalPagamento) fecharModal();
-    });
-
-    modalConfirmar.addEventListener('click', async () => {
-        const checkboxes = modalCheckboxes.querySelectorAll('input[type="checkbox"]');
-        const marcadas = Array.from(checkboxes)
-            .map((cb, idx) => cb.checked ? { cb, idx } : null)
-            .filter(Boolean)
-            .map(item => {
-                const conta = contasModalSelecionadas[item.idx];
-                const chave = conta.nome + '|' + conta.vencimento;
-                const novoValor = valoresEditados[chave] || conta.valor;
-                return { ...conta, valor: novoValor };
-            });
-
-        if (marcadas.length === 0) {
-            alert('Selecione pelo menos uma conta');
-            return;
-        }
-
-        const data = modalData.value;
-        if (!data) {
-            alert('Selecione a data');
-            return;
-        }
-
-        fecharModal();
-        let erros = 0;
-        for (const conta of marcadas) {
-            try {
-                await chamarBackend({
-                    action: 'gravarPagamento',
-                    nome: conta.nome,
-                    vencimento: conta.vencimento,
-                    dataPagamento: data,
-                    secret: SHARED_SECRET
-                }, 25000);
-            } catch (e) {
-                erros++;
-            }
-        }
-
-        if (erros === 0) {
-            alert('✅ ' + marcadas.length + ' conta(s) marcada(s) como paga!');
-        } else {
-            alert('❌ ' + erros + ' conta(s) falharam ao marcar');
-        }
-        carregarContas();
-    });
-
-    // Expõe para o renderContas usar
-    window.abrirModalPagamento = abrirModalPagamento;
 
     // Service Worker
     if ('serviceWorker' in navigator) {
