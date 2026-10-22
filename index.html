@@ -383,7 +383,32 @@
         .success-message { background: var(--stamp-soft); color: var(--stamp); border-left: 3px solid var(--stamp); }
         .error-message.show, .success-message.show { display: block; }
         @media (prefers-reduced-motion: reduce) { * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; } }
-    </style>
+    
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 1000; align-items: flex-end; justify-content: center; }
+        .modal.show { display: flex; }
+        .modal-content { background: var(--card); width: 100%; max-width: 500px; max-height: 88vh; border-radius: 16px 16px 0 0; display: flex; flex-direction: column; animation: slideUp 0.25s ease-out; box-sizing: border-box; }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: none; } }
+        .modal-header { padding: 16px 18px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; }
+        .modal-title { font-size: 17px; font-weight: 700; margin: 0; color: var(--ink); }
+        .modal-close { background: none; border: none; font-size: 26px; line-height: 1; color: var(--ink); cursor: pointer; padding: 0 4px; }
+        .modal-body { padding: 14px 18px; overflow-y: auto; flex: 1; min-height: 0; }
+        .modal-footer { display: flex; gap: 10px; padding: 14px 18px; border-top: 1px solid var(--line); }
+        .modal-footer button { flex: 1; padding: 12px; border: none; border-radius: 8px; font-weight: 600; font-size: 15px; cursor: pointer; }
+        .modal-btn-sec { background: var(--line); color: var(--ink); }
+        .modal-btn-pri { background: var(--accent); color: #fff; }
+        .modal-label { font-size: 12px; font-weight: 600; color: var(--ink-soft); display: block; margin-bottom: 6px; }
+        .modal-date { width: 100%; padding: 11px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; box-sizing: border-box; background: var(--card); color: var(--ink); }
+        .modal-item { border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin-bottom: 10px; background: var(--card); }
+        .modal-item-top { display: flex; gap: 10px; align-items: flex-start; }
+        .modal-cb { width: 20px; height: 20px; margin: 2px 0 0; flex-shrink: 0; }
+        .modal-item-info { min-width: 0; flex: 1; }
+        .modal-item-nome { font-size: 14px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+        .modal-item-venc { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+        .modal-item-valor { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding-left: 30px; }
+        .modal-item-valor span { font-size: 13px; color: var(--ink-soft); }
+        .modal-valor { flex: 1; min-width: 0; padding: 9px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; text-align: right; box-sizing: border-box; background: var(--card); color: var(--ink); }
+        .conta-card, .conta-detalhes, .conta-nome { overflow-wrap: anywhere; min-width: 0; max-width: 100%; box-sizing: border-box; }
+</style>
 </head>
 <body>
 <div class="container">
@@ -403,6 +428,26 @@
         <div id="contasBody">
             <div class="contas-loading">
                 <div class="spinner-small"></div><br>Carregando contas...
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ MODAL: PAGAR MÚLTIPLAS CONTAS ============ -->
+    <div class="modal" id="modalPagamento">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Pagar múltiplas contas</h2>
+                <button type="button" class="modal-close" id="modalClose" aria-label="Fechar">×</button>
+            </div>
+            <div class="modal-body">
+                <label class="modal-label" for="modalData">Data do pagamento</label>
+                <input type="date" id="modalData" class="modal-date">
+                <div class="modal-label" style="margin-top:14px">Contas (desmarque as que não quer pagar agora)</div>
+                <div id="modalCheckboxes"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="modal-btn-sec" id="modalCancelar">Cancelar</button>
+                <button type="button" class="modal-btn-pri" id="modalConfirmar">Confirmar</button>
             </div>
         </div>
     </div>
@@ -589,7 +634,7 @@
         if (atrasadas.length > 0) {
             html += '<div class="secao-label">🔴 Em atraso</div>';
             if (atrasadas.length > 1) {
-                html += `<button class="btn-copiar-contas" id="btnMarcarAtrasadas" style="margin-bottom:8px">✅ Marcar ${atrasadas.length} como paga</button>`;
+                html += `<button class="btn-copiar-contas" id="btnMarcarAtrasadas" style="margin-bottom:8px">Pagar Múltiplas Contas</button>`;
             }
             atrasadas.forEach((c, i) => { html += cartao(c, 'danger', i); });
             if (atrasadas.length > 1) {
@@ -600,7 +645,7 @@
         if (hoje.length > 0) {
             html += `<div class="secao-label" ${atrasadas.length > 0 ? 'style="margin-top:20px"' : ''}>⚠️ Vence hoje</div>`;
             if (hoje.length > 1) {
-                html += `<button class="btn-copiar-contas" id="btnMarcarHoje" style="margin-bottom:8px">✅ Marcar ${hoje.length} como paga</button>`;
+                html += `<button class="btn-copiar-contas" id="btnMarcarHoje" style="margin-bottom:8px">Pagar Múltiplas Contas</button>`;
             }
             hoje.forEach((c, i) => { html += cartao(c, 'hoje', i); });
             if (hoje.length > 1) {
@@ -610,6 +655,9 @@
 
         if (proximas.length > 0) {
             html += '<div class="secao-label" style="margin-top:20px">📅 Próximos 3 dias</div>';
+            if (proximas.length > 1) {
+                html += `<button class="btn-copiar-contas" id="btnMarcarProximas" style="margin-bottom:8px">Pagar Múltiplas Contas</button>`;
+            }
             proximas.forEach((c, i) => { html += cartao(c, 'proxima', i); });
             // Próximas: só botão individual, sem copiar todas
         }
@@ -621,6 +669,8 @@
         const btnMarcarHoje = document.getElementById('btnMarcarHoje');
         if (btnMarcarAtrasadas) btnMarcarAtrasadas.addEventListener('click', () => abrirModalPagamento(atrasadas));
         if (btnMarcarHoje) btnMarcarHoje.addEventListener('click', () => abrirModalPagamento(hoje));
+        const btnMarcarProximas = document.getElementById('btnMarcarProximas');
+        if (btnMarcarProximas) btnMarcarProximas.addEventListener('click', () => abrirModalPagamento(proximas));
 
         // Função para marcar como pago
         async function marcarComoPago(conta, cor, idx) {
@@ -740,7 +790,7 @@
             copiarTexto(textoTodas(hoje), btnHoje, '📋 Copiar todas de hoje'));
     }
 
-    document.getElementById('btnRefresh').addEventListener('click', carregarContas);
+    document.getElementById('btnRefresh').addEventListener('click', atualizarComLimpeza);
     carregarContas(); // carrega ao abrir
 
     // ================================================================
@@ -816,7 +866,7 @@
 
     // ===== Envio de comprovantes =====
     // O servidor precisa estar nesta versão (o app confere antes de enviar).
-    const VERSAO_BACKEND_ESPERADA = '2026-10-15-a';
+    const VERSAO_BACKEND_ESPERADA = '2026-10-21-a';
 
     // Cópia de segurança; a lista oficial vem do servidor (ping).
     const MODELOS_PADRAO = [
@@ -1222,6 +1272,113 @@
             navigator.clipboard.writeText(text).catch(() => { outputBox.select(); document.execCommand('copy'); });
         } else { outputBox.select(); document.execCommand('copy'); }
     });
+
+    // ===== Pagar múltiplas contas =====
+    function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+    function valorParaCampo(v) {
+        const n = parseFloat(String(v == null ? '' : v).replace(',', '.'));
+        return isNaN(n) ? '' : n.toFixed(2).replace('.', ',');
+    }
+    function dataHojeLocal() {
+        const d = new Date();
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+
+    const modalPagamento = document.getElementById('modalPagamento');
+    const modalCheckboxes = document.getElementById('modalCheckboxes');
+    const modalData = document.getElementById('modalData');
+    let contasModal = [];
+
+    function abrirModalPagamento(contas) {
+        contasModal = contas;
+        modalData.value = dataHojeLocal();
+        modalCheckboxes.innerHTML = contas.map((c, i) => `
+            <div class="modal-item">
+                <div class="modal-item-top">
+                    <input type="checkbox" class="modal-cb" data-idx="${i}" checked>
+                    <div class="modal-item-info">
+                        <div class="modal-item-nome">${esc(c.nome || c.fornecedor)}</div>
+                        <div class="modal-item-venc">Venc. ${esc(c.vencimento)}</div>
+                    </div>
+                </div>
+                <div class="modal-item-valor">
+                    <span>R$</span>
+                    <input type="text" inputmode="decimal" class="modal-valor" data-idx="${i}" value="${esc(valorParaCampo(c.valor))}">
+                </div>
+            </div>`).join('');
+        modalPagamento.classList.add('show');
+    }
+
+    function fecharModal() {
+        modalPagamento.classList.remove('show');
+        contasModal = [];
+    }
+    document.getElementById('modalCancelar').addEventListener('click', fecharModal);
+    document.getElementById('modalClose').addEventListener('click', fecharModal);
+    modalPagamento.addEventListener('click', e => { if (e.target === modalPagamento) fecharModal(); });
+
+    document.getElementById('modalConfirmar').addEventListener('click', async () => {
+        // Lê direto da tela (inclusive o valor editado), sem depender de evento de blur
+        const escolhidas = [];
+        modalCheckboxes.querySelectorAll('.modal-cb').forEach(cb => {
+            if (!cb.checked) return;
+            const i = Number(cb.dataset.idx);
+            const campo = modalCheckboxes.querySelector('.modal-valor[data-idx="' + i + '"]');
+            const c = contasModal[i];
+            escolhidas.push({
+                nome: c.nome || c.fornecedor || '',
+                vencimento: c.vencimento,
+                valor: campo ? campo.value.trim() : ''
+            });
+        });
+        if (escolhidas.length === 0) { alert('Marque pelo menos uma conta.'); return; }
+        const data = modalData.value;
+        if (!data) { alert('Escolha a data do pagamento.'); return; }
+        fecharModal();
+
+        let ok = 0;
+        const falhas = [];
+        for (const c of escolhidas) {
+            try {
+                const r = await chamarBackend({
+                    action: 'gravarPagamento',
+                    nome: c.nome,
+                    vencimento: c.vencimento,
+                    dataPagamento: data,
+                    valor: c.valor,
+                    secret: SHARED_SECRET
+                }, 60000);
+                if (r.error) throw new Error(r.error);
+                ok++;
+            } catch (e) {
+                const motivo = e.tipo === 'timeout' ? 'demorou demais'
+                             : e.tipo === 'rede' ? 'sem conexão'
+                             : e.message;
+                falhas.push(c.nome + ': ' + motivo);
+            }
+        }
+        alert(falhas.length
+            ? '✅ ' + ok + ' marcada(s).\n❌ Não foi possível marcar:\n' + falhas.join('\n')
+            : '✅ ' + ok + ' conta(s) marcada(s) como paga.');
+        carregarContas();
+    });
+
+    // Botão Atualizar: limpa cache e service worker, depois recarrega a página
+    async function atualizarComLimpeza() {
+        try {
+            if ('caches' in window) {
+                const chaves = await caches.keys();
+                await Promise.all(chaves.map(k => caches.delete(k)));
+            }
+            if ('serviceWorker' in navigator) {
+                const regs = await navigator.serviceWorker.getRegistrations();
+                await Promise.all(regs.map(r => r.unregister()));
+            }
+        } catch (e) { console.error('Erro ao limpar cache:', e); }
+        location.href = location.pathname + '?v=' + Date.now();
+    }
 
     // Service Worker
     if ('serviceWorker' in navigator) {
