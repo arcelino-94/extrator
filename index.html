@@ -408,6 +408,10 @@
         .modal-item-valor span { font-size: 13px; color: var(--ink-soft); }
         .modal-valor { flex: 1; min-width: 0; padding: 9px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; text-align: right; box-sizing: border-box; background: var(--card); color: var(--ink); }
         .conta-card, .conta-detalhes, .conta-nome { overflow-wrap: anywhere; min-width: 0; max-width: 100%; box-sizing: border-box; }
+
+        .modal-input { width: 100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; box-sizing: border-box; background: var(--card); color: var(--ink); margin-bottom: 12px; }
+        .modal-check { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--ink); margin: 6px 0 12px; }
+        .modal-check input { width: 20px; height: 20px; }
 </style>
 </head>
 <body>
@@ -424,6 +428,7 @@
         <div class="contas-header">
             <span class="contas-title">Contas a Pagar</span>
             <button class="btn-refresh" id="btnRefresh">↻ Atualizar</button>
+            <button class="btn-refresh" id="btnIncluir">＋ Incluir despesa</button>
         </div>
         <div id="contasBody">
             <div class="contas-loading">
@@ -448,6 +453,49 @@
             <div class="modal-footer">
                 <button type="button" class="modal-btn-sec" id="modalCancelar">Cancelar</button>
                 <button type="button" class="modal-btn-pri" id="modalConfirmar">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ MODAL: INCLUIR DESPESA ============ -->
+    <div class="modal" id="modalIncluir">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Incluir despesa</h2>
+                <button type="button" class="modal-close" id="incluirClose" aria-label="Fechar">×</button>
+            </div>
+            <div class="modal-body">
+                <label class="modal-label">NOME *</label>
+                <input type="text" id="incNome" class="modal-input" placeholder="Ex.: Conta de luz">
+                <label class="modal-label">Fornecedor</label>
+                <input type="text" id="incFornecedor" class="modal-input">
+                <label class="modal-label">Forma de pagamento / Informações importantes</label>
+                <input type="text" id="incForma" class="modal-input">
+                <label class="modal-label">Tags</label>
+                <input type="text" id="incTags" class="modal-input">
+                <label class="modal-label">Fixa / Esporádica</label>
+                <select id="incTipo" class="modal-input">
+                    <option value="">—</option>
+                    <option value="Fixa">Fixa</option>
+                    <option value="Esporádica">Esporádica</option>
+                </select>
+                <label class="modal-label">Vencimento *</label>
+                <input type="date" id="incVencimento" class="modal-input">
+                <label class="modal-label">Categoria</label>
+                <input type="text" id="incCategoria" class="modal-input">
+                <label class="modal-label">OBS</label>
+                <input type="text" id="incObs" class="modal-input">
+                <label class="modal-label">Valor planejado (R$)</label>
+                <input type="text" id="incValor" inputmode="decimal" class="modal-input" placeholder="0,00">
+                <label class="modal-check"><input type="checkbox" id="incJaPaga"> Já está paga</label>
+                <div id="incDataWrap" style="display:none">
+                    <label class="modal-label">Data do pagamento</label>
+                    <input type="date" id="incDataPag" class="modal-input">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="modal-btn-sec" id="incCancelar">Cancelar</button>
+                <button type="button" class="modal-btn-pri" id="incConfirmar">Incluir</button>
             </div>
         </div>
     </div>
@@ -675,28 +723,36 @@
         // Função para marcar como pago
         async function marcarComoPago(conta, cor, idx) {
             const hoje = new Date();
-            const input = document.createElement('input');
-            input.type = 'date';
-            input.value = [hoje.getFullYear(), String(hoje.getMonth() + 1).padStart(2, '0'), String(hoje.getDate()).padStart(2, '0')].join('-');
-            input.max = [hoje.getFullYear(), String(hoje.getMonth() + 1).padStart(2, '0'), String(hoje.getDate()).padStart(2, '0')].join('-');
+            const dataHoje = [hoje.getFullYear(), String(hoje.getMonth() + 1).padStart(2, '0'), String(hoje.getDate()).padStart(2, '0')].join('-');
+            const valorExibido = String(conta.valor || '0').replace(/\./g, ',');
             
             const dialog = document.createElement('div');
             dialog.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999';
             dialog.innerHTML = `
-                <div style="background:white;padding:20px;border-radius:12px;text-align:center;max-width:300px">
-                    <h3 style="margin-bottom:15px">Data do Pagamento</h3>
-                    <input type="date" id="dataInput" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;margin-bottom:15px" />
+                <div style="background:white;padding:20px;border-radius:12px;max-width:340px;width:90vw">
+                    <h3 style="margin:0 0 16px;font-size:16px;color:#333">${conta.nome || conta.fornecedor}</h3>
+                    <div style="margin-bottom:16px">
+                        <label style="display:block;font-size:12px;color:#666;margin-bottom:6px;font-weight:600">Data do pagamento</label>
+                        <input type="date" id="dataInput" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;box-sizing:border-box;font-size:15px" />
+                    </div>
+                    <div style="margin-bottom:16px">
+                        <label style="display:block;font-size:12px;color:#666;margin-bottom:6px;font-weight:600">Valor pago</label>
+                        <input type="text" id="valorInput" inputmode="decimal" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;box-sizing:border-box;font-size:15px;text-align:right" placeholder="0,00" />
+                    </div>
                     <div style="display:flex;gap:10px">
-                        <button id="btnCancelar" style="flex:1;padding:10px;border:1px solid #ddd;border-radius:6px;background:white;cursor:pointer">Cancelar</button>
-                        <button id="btnConfirmar" style="flex:1;padding:10px;border:none;border-radius:6px;background:#2F6B4F;color:white;cursor:pointer">Confirmar</button>
+                        <button id="btnCancelar" style="flex:1;padding:10px;border:1px solid #ddd;border-radius:6px;background:white;color:#333;cursor:pointer;font-weight:600">Cancelar</button>
+                        <button id="btnConfirmar" style="flex:1;padding:10px;border:none;border-radius:6px;background:#2F6B4F;color:white;cursor:pointer;font-weight:600">Confirmar</button>
                     </div>
                 </div>
             `;
             document.body.appendChild(dialog);
             
             const inputData = dialog.querySelector('#dataInput');
-            inputData.value = input.value;
-            inputData.max = input.max;
+            inputData.value = dataHoje;
+            inputData.max = dataHoje;
+            
+            const inputValor = dialog.querySelector('#valorInput');
+            inputValor.value = valorExibido;
             
             return new Promise(resolve => {
                 dialog.querySelector('#btnCancelar').onclick = () => {
@@ -707,8 +763,9 @@
                     const dataStr = inputData.value; // "2026-10-07"
                     const [ano, mes, dia] = dataStr.split('-');
                     const dataBR = `${dia}/${mes}/${ano}`;
+                    const valor = inputValor.value.trim();
                     dialog.remove();
-                    resolve(dataBR);
+                    resolve({ data: dataBR, valor: valor });
                 };
             });
         }
@@ -719,8 +776,8 @@
             const btnPago = document.getElementById(`btnPago_danger_${i}`);
             if (btnCopiar) btnCopiar.addEventListener('click', () => copiarTexto(textoUnica(c), btnCopiar, '📋 Copiar'));
             if (btnPago) btnPago.addEventListener('click', async () => {
-                const data = await marcarComoPago(c, 'danger', i);
-                if (data) gravarDataPagamento(c.nome, c.vencimento, data, btnPago);
+                const resultado = await marcarComoPago(c, 'danger', i);
+                if (resultado) gravarDataPagamento(c.nome, c.vencimento, resultado.data, resultado.valor, btnPago);
             });
         });
         hoje.forEach((c, i) => {
@@ -728,8 +785,8 @@
             const btnPago = document.getElementById(`btnPago_hoje_${i}`);
             if (btnCopiar) btnCopiar.addEventListener('click', () => copiarTexto(textoUnica(c), btnCopiar, '📋 Copiar'));
             if (btnPago) btnPago.addEventListener('click', async () => {
-                const data = await marcarComoPago(c, 'hoje', i);
-                if (data) gravarDataPagamento(c.nome, c.vencimento, data, btnPago);
+                const resultado = await marcarComoPago(c, 'hoje', i);
+                if (resultado) gravarDataPagamento(c.nome, c.vencimento, resultado.data, resultado.valor, btnPago);
             });
         });
         proximas.forEach((c, i) => {
@@ -737,13 +794,13 @@
             const btnPago = document.getElementById(`btnPago_proxima_${i}`);
             if (btnCopiar) btnCopiar.addEventListener('click', () => copiarTexto(textoUnica(c), btnCopiar, '📋 Copiar'));
             if (btnPago) btnPago.addEventListener('click', async () => {
-                const data = await marcarComoPago(c, 'proxima', i);
-                if (data) gravarDataPagamento(c.nome, c.vencimento, data, btnPago);
+                const resultado = await marcarComoPago(c, 'proxima', i);
+                if (resultado) gravarDataPagamento(c.nome, c.vencimento, resultado.data, resultado.valor, btnPago);
             });
         });
 
         // Função para gravar data de pagamento na planilha
-        async function gravarDataPagamento(nome, vencimento, dataPagamento, btn) {
+        async function gravarDataPagamento(nome, vencimento, dataPagamento, valor, btn) {
             try {
                 btn.textContent = '⏳ Gravando...';
                 btn.disabled = true;
@@ -756,6 +813,7 @@
                         nome: nome,
                         vencimento: vencimento,
                         dataPagamento: dataPagamento,
+                        valor: valor,
                         secret: SHARED_SECRET
                     })
                 });
@@ -866,7 +924,7 @@
 
     // ===== Envio de comprovantes =====
     // O servidor precisa estar nesta versão (o app confere antes de enviar).
-    const VERSAO_BACKEND_ESPERADA = '2026-10-21-a';
+    const VERSAO_BACKEND_ESPERADA = '2026-10-22-a';
 
     // Cópia de segurança; a lista oficial vem do servidor (ping).
     const MODELOS_PADRAO = [
@@ -1379,6 +1437,84 @@
         } catch (e) { console.error('Erro ao limpar cache:', e); }
         location.href = location.pathname + '?v=' + Date.now();
     }
+
+    // ===== Incluir despesa =====
+    const modalIncluir = document.getElementById('modalIncluir');
+    const incJaPaga = document.getElementById('incJaPaga');
+    const incDataWrap = document.getElementById('incDataWrap');
+
+    function limparFormIncluir() {
+        ['incNome','incFornecedor','incForma','incTags','incCategoria','incObs','incValor','incVencimento','incDataPag'].forEach(id => document.getElementById(id).value = '');
+        document.getElementById('incTipo').value = '';
+        incJaPaga.checked = false;
+        incDataWrap.style.display = 'none';
+    }
+    function isoParaBR(iso) {
+        if (!iso) return '';
+        const [a, m, d] = iso.split('-');
+        return d + '/' + m + '/' + a;
+    }
+    function fecharIncluir() { modalIncluir.classList.remove('show'); }
+
+    document.getElementById('btnIncluir').addEventListener('click', () => {
+        limparFormIncluir();
+        modalIncluir.classList.add('show');
+    });
+    document.getElementById('incCancelar').addEventListener('click', fecharIncluir);
+    document.getElementById('incluirClose').addEventListener('click', fecharIncluir);
+    modalIncluir.addEventListener('click', e => { if (e.target === modalIncluir) fecharIncluir(); });
+    incJaPaga.addEventListener('change', () => {
+        incDataWrap.style.display = incJaPaga.checked ? 'block' : 'none';
+        if (incJaPaga.checked && !document.getElementById('incDataPag').value) {
+            const d = new Date();
+            document.getElementById('incDataPag').value = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+        }
+    });
+
+    document.getElementById('incConfirmar').addEventListener('click', async () => {
+        const nome = document.getElementById('incNome').value.trim();
+        const vencIso = document.getElementById('incVencimento').value;
+        const valor = document.getElementById('incValor').value.trim();
+        if (!nome) { alert('Preencha o NOME.'); return; }
+        if (!vencIso) { alert('Preencha o Vencimento.'); return; }
+
+        const pagaAgora = incJaPaga.checked;
+        const dataPagIso = document.getElementById('incDataPag').value;
+        if (pagaAgora && !dataPagIso) { alert('Escolha a data do pagamento.'); return; }
+
+        const btn = document.getElementById('incConfirmar');
+        btn.disabled = true;
+        btn.textContent = 'Incluindo...';
+        try {
+            const r = await chamarBackend({
+                action: 'incluirDespesa',
+                requestId: 'desp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+                nome: nome,
+                fornecedor: document.getElementById('incFornecedor').value.trim(),
+                forma: document.getElementById('incForma').value.trim(),
+                tags: document.getElementById('incTags').value.trim(),
+                tipo: document.getElementById('incTipo').value,
+                vencimento: isoParaBR(vencIso),
+                categoria: document.getElementById('incCategoria').value.trim(),
+                obs: document.getElementById('incObs').value.trim(),
+                valor: valor,
+                dataPagamento: pagaAgora ? isoParaBR(dataPagIso) : '',
+                secret: SHARED_SECRET
+            }, 60000);
+            if (r.error) throw new Error(r.error);
+            fecharIncluir();
+            alert('✅ Despesa incluída na linha ' + r.linha + (pagaAgora ? ' (já paga).' : ' (em aberto).'));
+            carregarContas();
+        } catch (e) {
+            const motivo = e.tipo === 'timeout' ? 'demorou demais, tente de novo'
+                         : e.tipo === 'rede' ? 'sem conexão, tente de novo'
+                         : e.message;
+            alert('❌ Não foi possível incluir: ' + motivo);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Incluir';
+        }
+    });
 
     // Service Worker
     if ('serviceWorker' in navigator) {
