@@ -1,4 +1,4 @@
-const CACHE_NAME = "comprovantes-v21";
+const CACHE_NAME = "comprovantes-v23";
 const ASSETS = [
   "./index.html",
   "./manifest.json",
