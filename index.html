@@ -412,6 +412,18 @@
         .modal-input { width: 100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; box-sizing: border-box; background: var(--card); color: var(--ink); margin-bottom: 12px; }
         .modal-check { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--ink); margin: 6px 0 12px; }
         .modal-check input { width: 20px; height: 20px; }
+
+        /* ===== Ajuste de tamanhos dos botões ===== */
+        .contas-header { flex-wrap: wrap; gap: 10px; }
+        .contas-header .contas-title { flex: 1 1 100%; }
+        .contas-header .btn-refresh { flex: 1 1 0; text-align: center; padding: 10px 8px; font-size: 14px; white-space: nowrap; }
+        [id^="btnCard_"], [id^="btnPago_"] { margin-top: 10px !important; padding: 11px 10px !important; font-size: 14px !important; line-height: 1.2 !important; white-space: nowrap; }
+        [id^="btnCard_"] { flex: 1 1 auto !important; width: auto !important; }
+        [id^="btnPago_"] { flex: 0 0 118px !important; width: 118px !important; text-align: center; }
+        .btn-copiar-contas { padding: 11px 10px !important; font-size: 14px !important; }
+
+        .btn-notif { width: 100%; margin: 0 0 14px; padding: 11px 10px; background: transparent; border: 1px dashed var(--accent); border-radius: 8px; color: var(--accent-deep); font-size: 14px; font-weight: 700; font-family: inherit; cursor: pointer; }
+        .btn-notif:active { background: var(--accent-soft); }
 </style>
 </head>
 <body>
@@ -430,6 +442,7 @@
             <button class="btn-refresh" id="btnRefresh">↻ Atualizar</button>
             <button class="btn-refresh" id="btnIncluir">＋ Incluir despesa</button>
         </div>
+        <button class="btn-notif" id="btnNotif">🔔 Ativar avisos no celular</button>
         <div id="contasBody">
             <div class="contas-loading">
                 <div class="spinner-small"></div><br>Carregando contas...
@@ -924,7 +937,7 @@
 
     // ===== Envio de comprovantes =====
     // O servidor precisa estar nesta versão (o app confere antes de enviar).
-    const VERSAO_BACKEND_ESPERADA = '2026-10-22-a';
+    const VERSAO_BACKEND_ESPERADA = '2026-10-23-a';
 
     // Cópia de segurança; a lista oficial vem do servidor (ping).
     const MODELOS_PADRAO = [
@@ -1515,6 +1528,72 @@
             btn.textContent = 'Incluir';
         }
     });
+
+    // ===== Notificações no celular (Web Push) =====
+    const VAPID_PUBLIC = 'BODXym1WkYDkRax7hOGRnwk2Dqn4-PeHGDEzH0Abtfu49UFxhoF8WedHdaSgo9GXOFNBNajSNlU_Po30SQ7ukpY';
+    const btnNotif = document.getElementById('btnNotif');
+
+    function urlBase64ToUint8Array(base64) {
+        const padding = '='.repeat((4 - base64.length % 4) % 4);
+        const b64 = (base64 + padding).replace(/-/g, '+').replace(/_/g, '/');
+        const raw = atob(b64);
+        return Uint8Array.from(raw, c => c.charCodeAt(0));
+    }
+    function ehIOS() { return /iphone|ipad|ipod/i.test(navigator.userAgent); }
+    function ehAppInstalado() {
+        return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+    }
+
+    async function atualizarBotaoNotif() {
+        if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+            btnNotif.textContent = 'Seu navegador não suporta avisos';
+            btnNotif.disabled = true;
+            return;
+        }
+        if (ehIOS() && !ehAppInstalado()) {
+            btnNotif.textContent = '🔔 iPhone: primeiro adicione à Tela de Início';
+            return;
+        }
+        if (Notification.permission === 'denied') {
+            btnNotif.textContent = '🔕 Avisos bloqueados no navegador';
+            return;
+        }
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        btnNotif.textContent = sub ? '🔔 Avisos ativados (toque para reenviar)' : '🔔 Ativar avisos no celular';
+    }
+
+    btnNotif.addEventListener('click', async () => {
+        if (ehIOS() && !ehAppInstalado()) {
+            alert('No iPhone: toque em Compartilhar → Adicionar à Tela de Início, abra o app por esse ícone e toque de novo.');
+            return;
+        }
+        try {
+            const permissao = await Notification.requestPermission();
+            if (permissao !== 'granted') {
+                alert('Permissão negada. Libere as notificações nas configurações do navegador.');
+                return;
+            }
+            const reg = await navigator.serviceWorker.ready;
+            let sub = await reg.pushManager.getSubscription();
+            if (!sub) {
+                sub = await reg.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC)
+                });
+            }
+            const r = await chamarBackend({ action: 'salvarPush', subscription: sub.toJSON(), secret: SHARED_SECRET }, 30000);
+            if (r.error) throw new Error(r.error);
+            alert('✅ Avisos ativados neste celular.');
+            atualizarBotaoNotif();
+        } catch (e) {
+            const motivo = e.tipo === 'timeout' ? 'demorou demais, tente de novo'
+                         : e.tipo === 'rede' ? 'sem conexão, tente de novo'
+                         : (e.message || 'erro desconhecido');
+            alert('❌ Não foi possível ativar: ' + motivo);
+        }
+    });
+    atualizarBotaoNotif();
 
     // Service Worker
     if ('serviceWorker' in navigator) {
