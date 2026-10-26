@@ -1,4 +1,4 @@
-const CACHE_NAME = "comprovantes-v23";
+const CACHE_NAME = "comprovantes-v25";
 const ASSETS = [
   "./index.html",
   "./manifest.json",
@@ -37,6 +37,29 @@ self.addEventListener("fetch", (event) => {
           return response;
         })
       );
+    })
+  );
+});
+
+// ===== Notificações push (aviso diário de contas) =====
+self.addEventListener('push', (event) => {
+  let dados = { title: 'Contas', body: 'Abra o app para ver suas contas.' };
+  try { if (event.data) dados = event.data.json(); } catch (e) {}
+  event.waitUntil(
+    self.registration.showNotification(dados.title || 'Contas', {
+      body: dados.body || '',
+      tag: 'contas-dia',
+      renotify: true
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((lista) => {
+      if (lista.length) return lista[0].focus();
+      return self.clients.openWindow('./');
     })
   );
 });
