@@ -1,0 +1,23 @@
+name: Aviso diário de contas
+
+on:
+  schedule:
+    - cron: '0 12 * * 1-5'   # 12:00 UTC = 09:00 em Recife, seg a sex
+  workflow_dispatch:           # botão "Run workflow" para testar
+
+jobs:
+  enviar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install web-push --no-save
+      - run: node scripts/enviar-aviso.js
+        env:
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          SHARED_SECRET: ${{ secrets.SHARED_SECRET }}
+          VAPID_PUBLIC: ${{ secrets.VAPID_PUBLIC }}
+          VAPID_PRIVATE: ${{ secrets.VAPID_PRIVATE }}
+          FORCAR: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
