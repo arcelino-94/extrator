@@ -37,7 +37,7 @@ async function getJson(params) {
   let enviados = 0;
   for (const sub of inscricoes) {
     try {
-      await webpush.sendNotification(sub, payload, { TTL: 3600 });
+      await webpush.sendNotification(sub, payload, { TTL: 43200, urgency: 'high' });
       enviados++;
     } catch (e) {
       console.log('Falha no envio (status ' + e.statusCode + ')');
